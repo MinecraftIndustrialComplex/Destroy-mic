@@ -46,6 +46,23 @@ public class DestroyCommonEvents {
         event.addListener(new petrolpark.mc.destroy.core.chemistry.data.ReactionDataReloadListener());
     }
 
+    /**
+     * Resend the current datapack reactions to a player on join. The listener's
+     * {@code sendToAllClients} broadcast only reaches players already connected; late-joiners
+     * need an individual send so their JEI Reaction category shows the same reactions as
+     * everyone else. The cached {@link petrolpark.mc.destroy.core.chemistry.data.ReactionDataReloadListener#LAST_LOADED}
+     * map avoids re-parsing every datapack JSON.
+     */
+    @SubscribeEvent
+    public static void resyncDatapackReactionsOnJoin(net.neoforged.neoforge.event.OnDatapackSyncEvent event) {
+        net.minecraft.server.level.ServerPlayer player = event.getPlayer();
+        if (player == null) return;  // null player = post-reload broadcast, the listener already handled it.
+        var loaded = petrolpark.mc.destroy.core.chemistry.data.ReactionDataReloadListener.LAST_LOADED;
+        if (loaded.isEmpty()) return;
+        net.createmod.catnip.platform.CatnipServices.NETWORK.sendToClient(player,
+            new petrolpark.mc.destroy.core.chemistry.data.SyncReactionsS2CPacket(loaded));
+    }
+
 
     /**
  *
