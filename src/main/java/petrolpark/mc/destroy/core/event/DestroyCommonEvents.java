@@ -42,6 +42,8 @@ public class DestroyCommonEvents {
         event.addListener(new petrolpark.mc.destroy.core.explosion.mixedexplosive.ExplosiveProperties.Listener());
         // Vat materials datapack reload (T2a break-in).
         event.addListener(new petrolpark.mc.destroy.core.chemistry.vat.material.VatMaterialResourceListener());
+        // Datapack-defined chemistry reactions (data/<ns>/destroy/reactions/).
+        event.addListener(new petrolpark.mc.destroy.core.chemistry.data.ReactionDataReloadListener());
     }
 
     /**

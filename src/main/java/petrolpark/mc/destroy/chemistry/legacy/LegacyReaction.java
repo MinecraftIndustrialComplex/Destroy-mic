@@ -2,6 +2,7 @@ package petrolpark.mc.destroy.chemistry.legacy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -64,6 +65,9 @@ public class LegacyReaction {
     private String nameSpace;
     /** The ID of this reaction, not including its name space.*/
     private String id;
+    /** Whether this Reaction was loaded from a datapack (vs. registered by Java at mod-init).
+     * Datapack-loaded reactions are cleared and rebuilt every {@code /reload}; built-in ones persist.*/
+    private boolean datapack;
 
     // JEI DISPLAY INFORMATION
 
@@ -194,6 +198,37 @@ public class LegacyReaction {
     /** The name space of the mod by which this Reaction was defined.*/
     public String getNameSpace() {
         return nameSpace;
+    }
+
+    /** Whether this Reaction was loaded from a datapack (vs. a built-in Java registration).*/
+    public boolean isDatapack() {
+        return datapack;
+    }
+
+    /** Mark this Reaction as datapack-sourced. Called by the reload listener after build.*/
+    public void markAsDatapack() {
+        this.datapack = true;
+    }
+
+    /**
+     * Remove every datapack-sourced reaction from {@link #REACTIONS} and clean up the per-species
+     * reverse indexes ({@code reactantReactions} / {@code productReactions}). Called by the
+     * reload listener before re-registering the new set.
+     */
+    public static void clearDatapackReactions() {
+        Iterator<Entry<String, LegacyReaction>> it = REACTIONS.entrySet().iterator();
+        while (it.hasNext()) {
+            Entry<String, LegacyReaction> entry = it.next();
+            LegacyReaction reaction = entry.getValue();
+            if (!reaction.datapack) continue;
+            for (LegacySpecies reactant : reaction.reactants.keySet()) {
+                reactant.removeReactantReaction(reaction);
+            }
+            for (LegacySpecies product : reaction.products.keySet()) {
+                product.removeProductReaction(reaction);
+            }
+            it.remove();
+        }
     }
 
     /** Get the stoichometric ratio of this reactant or catalyst in this Reaction.*/

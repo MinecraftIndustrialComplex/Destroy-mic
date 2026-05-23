@@ -66,4 +66,12 @@ public abstract class ReactionResult {
     public Collection<PrecipitateReactionResult> getAllPrecipitates() {
         return Collections.emptySet();
     }
+
+    /**
+     * Factory signature for {@link LegacyReaction.ReactionBuilder#withResult(float, java.util.function.BiFunction)}.
+     * Named alias of {@code BiFunction<Float, LegacyReaction, ReactionResult>} so that data-driven
+     * codec implementations can carry it as a typed field.
+     */
+    @FunctionalInterface
+    public interface Factory extends java.util.function.BiFunction<Float, LegacyReaction, ReactionResult> {}
 }

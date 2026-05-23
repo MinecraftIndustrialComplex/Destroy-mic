@@ -315,6 +315,16 @@ public class LegacySpecies implements INameableProduct {
         if (reaction.containsProduct(this)) productReactions.add(reaction);
     }
 
+    /** Remove the given Reaction from this Molecule's reactant index (datapack reload cleanup).*/
+    public void removeReactantReaction(LegacyReaction reaction) {
+        reactantReactions.remove(reaction);
+    }
+
+    /** Remove the given Reaction from this Molecule's product index (datapack reload cleanup).*/
+    public void removeProductReaction(LegacyReaction reaction) {
+        productReactions.remove(reaction);
+    }
+
     /** Get the list of Reactions of which this Molecule is a necessary Reactant.*/
     public List<LegacyReaction> getReactantReactions() {
         return this.reactantReactions;
