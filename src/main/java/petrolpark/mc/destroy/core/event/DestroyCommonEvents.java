@@ -42,6 +42,10 @@ public class DestroyCommonEvents {
         event.addListener(new petrolpark.mc.destroy.core.explosion.mixedexplosive.ExplosiveProperties.Listener());
         // Vat materials datapack reload (T2a break-in).
         event.addListener(new petrolpark.mc.destroy.core.chemistry.vat.material.VatMaterialResourceListener());
+        // Datapack-defined chemistry molecules (data/<ns>/destroy/molecules/). MUST register
+        // BEFORE the reaction listener — reactions reference molecules by id and need them
+        // present in LegacySpecies.MOLECULES at apply-time.
+        event.addListener(new petrolpark.mc.destroy.core.chemistry.data.MoleculeDataReloadListener());
         // Datapack-defined chemistry reactions (data/<ns>/destroy/reactions/).
         event.addListener(new petrolpark.mc.destroy.core.chemistry.data.ReactionDataReloadListener());
     }
@@ -57,10 +61,20 @@ public class DestroyCommonEvents {
     public static void resyncDatapackReactionsOnJoin(net.neoforged.neoforge.event.OnDatapackSyncEvent event) {
         net.minecraft.server.level.ServerPlayer player = event.getPlayer();
         if (player == null) return;  // null player = post-reload broadcast, the listener already handled it.
-        var loaded = petrolpark.mc.destroy.core.chemistry.data.ReactionDataReloadListener.LAST_LOADED;
-        if (loaded.isEmpty()) return;
-        net.createmod.catnip.platform.CatnipServices.NETWORK.sendToClient(player,
-            new petrolpark.mc.destroy.core.chemistry.data.SyncReactionsS2CPacket(loaded));
+
+        // Send molecules first, then reactions — same ordering rationale as listener registration
+        // (reactions can reference molecules, so the client needs the molecule set before the
+        // reaction packet's apply() runs LegacySpecies.getMolecule() lookups).
+        var molecules = petrolpark.mc.destroy.core.chemistry.data.MoleculeDataReloadListener.LAST_LOADED;
+        if (!molecules.isEmpty()) {
+            net.createmod.catnip.platform.CatnipServices.NETWORK.sendToClient(player,
+                new petrolpark.mc.destroy.core.chemistry.data.SyncMoleculesS2CPacket(molecules));
+        }
+        var reactions = petrolpark.mc.destroy.core.chemistry.data.ReactionDataReloadListener.LAST_LOADED;
+        if (!reactions.isEmpty()) {
+            net.createmod.catnip.platform.CatnipServices.NETWORK.sendToClient(player,
+                new petrolpark.mc.destroy.core.chemistry.data.SyncReactionsS2CPacket(reactions));
+        }
     }
 
 

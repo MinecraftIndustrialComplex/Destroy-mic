@@ -90,6 +90,11 @@ public class LegacySpecies implements INameableProduct {
     /** The {@link LegacyMolecularStructure} of this Molecule.*/
     private LegacyMolecularStructure structure;
 
+    /** Whether this Molecule was loaded from a datapack (vs. a built-in Java registration).
+     * Datapack-loaded molecules are cleared and rebuilt every {@code /reload}; built-in ones
+     * persist across reloads.*/
+    private boolean datapack;
+
     // REACTIONS
 
     /** The {@link LegacySpeciesTag tags} which apply to this Molecule.*/
@@ -313,6 +318,38 @@ public class LegacySpecies implements INameableProduct {
     /** Mark this Molecule as being a product in the given Reaction.*/
     public void addProductReaction(LegacyReaction reaction) {
         if (reaction.containsProduct(this)) productReactions.add(reaction);
+    }
+
+    /** Whether this Molecule was loaded from a datapack (vs. a built-in Java registration).*/
+    public boolean isDatapack() {
+        return datapack;
+    }
+
+    /** Mark this Molecule as datapack-sourced. Called by the reload listener after build.*/
+    public void markAsDatapack() {
+        this.datapack = true;
+    }
+
+    /**
+     * Remove every datapack-sourced molecule from {@link #MOLECULES} and clean up the
+     * {@link LegacySpeciesTag} reverse-index ({@code MOLECULES_WITH_TAGS}). Called by the
+     * reload listener before re-registering the new molecule set.
+     */
+    public static void clearDatapackMolecules() {
+        java.util.Iterator<java.util.Map.Entry<String, LegacySpecies>> it = MOLECULES.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<String, LegacySpecies> entry = it.next();
+            LegacySpecies species = entry.getValue();
+            if (!species.datapack) continue;
+            // Remove this species from each tag's MOLECULES_WITH_TAGS reverse-set so the
+            // tag stays clean across reloads. The species object itself becomes GC-eligible
+            // once we drop our REFERENCE from MOLECULES.
+            for (LegacySpeciesTag tag : species.tags) {
+                java.util.Set<LegacySpecies> set = LegacySpeciesTag.MOLECULES_WITH_TAGS.get(tag);
+                if (set != null) set.remove(species);
+            }
+            it.remove();
+        }
     }
 
     /** Remove the given Reaction from this Molecule's reactant index (datapack reload cleanup).*/
