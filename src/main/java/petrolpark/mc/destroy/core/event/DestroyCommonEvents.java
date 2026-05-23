@@ -47,6 +47,54 @@ public class DestroyCommonEvents {
     }
 
     /**
+     * Rebuild the JEI molecule → recipe reverse-index from scratch after each datapack reload.
+     *
+     * <p>{@code JeiProcessingRecipeMixin} populates {@code DestroyJEI.MOLECULES_INPUT} and
+     * {@code MOLECULES_OUTPUT} by appending to a {@code List} on every {@code ProcessingRecipe.<init>}
+     * call, but never clears those lists. Each datapack reload (or single-player world re-entry,
+     * which triggers a reload) reconstructs every recipe → mixin appends NEW {@code Recipe<?>}
+     * instances on top of the existing ones, so JEI's molecule drill-down accumulates duplicate
+     * entries indefinitely.</p>
+     *
+     * <p>{@link net.neoforged.neoforge.event.OnDatapackSyncEvent OnDatapackSyncEvent} fires after
+     * the RecipeManager has finished reloading; we wipe both maps and let the mixin's already-run
+     * populate pass be the source of truth — but filter out any stale {@code Recipe<?>} instances
+     * (those no longer present in the current {@code RecipeManager}) at the same time.</p>
+     */
+    @SubscribeEvent
+    public static void rebuildJeiMoleculeIndexes(net.neoforged.neoforge.event.OnDatapackSyncEvent event) {
+        // JEI optional-dependency guard: accessing DestroyJEI.MOLECULES_INPUT class-loads
+        // DestroyJEI → which implements mezz.jei.api.IModPlugin → NoClassDefFoundError if JEI
+        // is absent. Same isLoading() pattern used by JeiProcessingRecipeMixin.
+        if (!com.petrolpark.compat.Mods.JEI.isLoading()) return;
+        // Only run once per reload — skip per-player join events (event.getPlayer() != null).
+        if (event.getPlayer() != null) return;
+        net.minecraft.server.MinecraftServer server = event.getPlayerList().getServer();
+        if (server == null) return;
+
+        java.util.Set<net.minecraft.world.item.crafting.Recipe<?>> live = new java.util.HashSet<>();
+        for (net.minecraft.world.item.crafting.RecipeHolder<?> holder : server.getRecipeManager().getRecipes()) {
+            live.add(holder.value());
+        }
+
+        // Drop stale entries (Recipe instances from a previous reload) and de-dupe what remains.
+        // The mixin already added the current ones during recipe-manager apply; this pass just
+        // filters out everything that isn't in the live recipe set.
+        java.util.function.BiConsumer<
+            petrolpark.mc.destroy.chemistry.legacy.LegacySpecies,
+            java.util.List<net.minecraft.world.item.crafting.Recipe<?>>> compact = (species, list) -> {
+            java.util.LinkedHashSet<net.minecraft.world.item.crafting.Recipe<?>> kept = new java.util.LinkedHashSet<>();
+            for (net.minecraft.world.item.crafting.Recipe<?> r : list) {
+                if (live.contains(r)) kept.add(r);
+            }
+            list.clear();
+            list.addAll(kept);
+        };
+        petrolpark.mc.destroy.compat.jei.DestroyJEI.MOLECULES_INPUT.forEach(compact);
+        petrolpark.mc.destroy.compat.jei.DestroyJEI.MOLECULES_OUTPUT.forEach(compact);
+    }
+
+    /**
  *
  * <p>Why ServerAboutToStartEvent (not RegisterEvent / ModLoading): structure pools are runtime
  * world data — they don't exist at mod-init time. They're loaded from datapack JSONs at world
