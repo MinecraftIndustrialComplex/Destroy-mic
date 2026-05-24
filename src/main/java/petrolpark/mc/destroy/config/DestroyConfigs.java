@@ -37,6 +37,28 @@ public class DestroyConfigs {
 		return server;
 	};
 
+	/**
+	 * Read an int-valued config, returning the supplied fallback if the config isn't loaded yet.
+	 *
+	 * <p>Other mods (e.g. FramedBlocks' camo-factory discovery on {@code DataMapsUpdatedEvent})
+	 * iterate every block in the registry and call {@code getCapability(FluidHandler.ITEM)}
+	 * during world-load resource reload — BEFORE NeoForge has applied the server config. Any
+	 * Destroy item capability that touches a {@code ConfigValue.get()} in that path crashes with
+	 * {@code IllegalStateException: Cannot get config value before config is loaded.} (see
+	 * BEAKER / ROUND_BOTTOMED_FLASK / MEASURING_CYLINDER capacity readers).</p>
+	 *
+	 * <p>This helper swallows that specific exception and substitutes the fallback (typically the
+	 * config's own default). Once the config finishes loading the supplier returns the real value
+	 * on subsequent invocations.</p>
+	 */
+	public static int safeInt(java.util.function.IntSupplier reader, int fallback) {
+		try {
+			return reader.getAsInt();
+		} catch (IllegalStateException e) {
+			return fallback;
+		}
+	}
+
 	public static ConfigBase byType(ModConfig.Type type) {
 		return CONFIGS.get(type);
 	};

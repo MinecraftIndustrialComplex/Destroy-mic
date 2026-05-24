@@ -50,7 +50,10 @@ public class MeasuringCylinderBlock extends PlaceableMixtureTankBlock<MeasuringC
 
     @Override
     public int getMixtureCapacity() {
-        return DestroyAllConfigs.SERVER.blocks.measuringCylinderCapacity.get();
+        // Other mods can query capacity via getCapability() during world-load reload before
+        // NeoForge applies the server config; see DestroyConfigs.safeInt javadoc for context.
+        return petrolpark.mc.destroy.config.DestroyConfigs.safeInt(
+            DestroyAllConfigs.SERVER.blocks.measuringCylinderCapacity::get, 300);
     }
 
     @Override

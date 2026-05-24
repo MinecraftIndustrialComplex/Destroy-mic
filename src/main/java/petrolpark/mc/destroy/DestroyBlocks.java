@@ -769,7 +769,8 @@ public class DestroyBlocks {
     public static final BlockEntry<petrolpark.mc.destroy.core.chemistry.storage.SimplePlaceableMixtureTankBlock> BEAKER =
         REGISTRATE.block("beaker",
                 petrolpark.mc.destroy.core.chemistry.storage.SimplePlaceableMixtureTankBlock.of(
-                    () -> petrolpark.mc.destroy.config.DestroyConfigs.server().blocks.beakerCapacity.get(),
+                    () -> petrolpark.mc.destroy.config.DestroyConfigs.safeInt(
+                        petrolpark.mc.destroy.config.DestroyConfigs.server().blocks.beakerCapacity::get, 500),
                     5.5f, 0.5f, 5.5f, 10.5f, 7f, 10.5f,
                     DestroyVoxelShapes.BEAKER))
             .initialProperties(() -> Blocks.GLASS)
@@ -816,7 +817,8 @@ public class DestroyBlocks {
     public static final BlockEntry<petrolpark.mc.destroy.core.chemistry.storage.SimplePlaceableMixtureTankBlock> ROUND_BOTTOMED_FLASK =
         REGISTRATE.block("round_bottomed_flask",
                 petrolpark.mc.destroy.core.chemistry.storage.SimplePlaceableMixtureTankBlock.of(
-                    () -> petrolpark.mc.destroy.config.DestroyConfigs.server().blocks.roundBottomedFlaskCapacity.get(),
+                    () -> petrolpark.mc.destroy.config.DestroyConfigs.safeInt(
+                        petrolpark.mc.destroy.config.DestroyConfigs.server().blocks.roundBottomedFlaskCapacity::get, 500),
                     5.5f, 0.5f, 5.5f, 10.5f, 4.5f, 10.5f,
                     DestroyVoxelShapes.ROUND_BOTTOMED_FLASK))
             .initialProperties(() -> Blocks.GLASS)
