@@ -74,11 +74,15 @@ public class DestroyPartials {
     MECHANICAL_SIEVE_LINKAGES = block("mechanical_sieve/linkages"),
     MECHANICAL_SIEVE = block("mechanical_sieve/sieve");
 
-    // Atoms: per-element ball models attached directly to the LegacyElement enum so the
-    // MoleculeRenderer can look up an element's visual by enum constant without a side table.
+    // Atoms: per-element ball models attached directly to the LegacyElement so the
+    // MoleculeRenderer can look up an element's visual without a side table. Each element
+    // now carries its own ResourceLocation modelPath (Phase 2b refactor — built-ins point at
+    // destroy:chemistry/atom/<name>, datapack-loaded ones point at their own namespace).
     static {
         for (LegacyElement element : LegacyElement.values()) {
-            if (element != LegacyElement.R_GROUP) element.setPartial(atom(Lang.asId(element.name())));
+            if (element != LegacyElement.R_GROUP && element.getModelPath() != null) {
+                element.setPartial(PartialModel.of(element.getModelPath()));
+            }
         }
     }
 

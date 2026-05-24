@@ -47,6 +47,9 @@ public enum DestroyPackets implements BasePacketPayload.PacketTypeProvider {
     // Vat material datapack → client sync (T2a break-in).
     SYNC_VAT_MATERIALS(petrolpark.mc.destroy.core.chemistry.vat.material.SyncVatMaterialsS2CPacket.class,
         petrolpark.mc.destroy.core.chemistry.vat.material.SyncVatMaterialsS2CPacket.STREAM_CODEC),
+    // Datapack-defined chemistry elements → client sync (Phase 2b custom elements).
+    SYNC_ELEMENTS(petrolpark.mc.destroy.core.chemistry.data.SyncElementsS2CPacket.class,
+        petrolpark.mc.destroy.core.chemistry.data.SyncElementsS2CPacket.STREAM_CODEC),
     // Datapack-defined chemistry molecules → client sync (Phase 2a data-driven molecules).
     SYNC_MOLECULES(petrolpark.mc.destroy.core.chemistry.data.SyncMoleculesS2CPacket.class,
         petrolpark.mc.destroy.core.chemistry.data.SyncMoleculesS2CPacket.STREAM_CODEC),

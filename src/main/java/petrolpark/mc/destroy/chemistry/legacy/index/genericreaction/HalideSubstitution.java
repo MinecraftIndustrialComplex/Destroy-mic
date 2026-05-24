@@ -1,6 +1,7 @@
 package petrolpark.mc.destroy.chemistry.legacy.index.genericreaction;
 
 import petrolpark.mc.destroy.chemistry.legacy.LegacyAtom;
+import petrolpark.mc.destroy.chemistry.legacy.LegacyElement;
 import petrolpark.mc.destroy.chemistry.legacy.LegacyMolecularStructure;
 import petrolpark.mc.destroy.chemistry.legacy.LegacySpecies;
 import petrolpark.mc.destroy.chemistry.legacy.ReadOnlyMixture;
@@ -63,16 +64,13 @@ public abstract class HalideSubstitution extends SingleGroupGenericReaction<Hali
     public void transform(ReactionBuilder builder, HalideGroup group) {};
 
     public LegacySpecies getIon(LegacyAtom atom) {
-        switch (atom.getElement()) {
-            case FLUORINE:
-                return DestroyMolecules.FLUORIDE;
-            case CHLORINE:
-                return DestroyMolecules.CHLORIDE;
-            case IODINE:
-                return DestroyMolecules.IODIDE;
-            default:
-                throw new GenericReactionGenerationException(atom.getElement().toString()+" is not a halogen.");
-        }
+        // Phase 2b: LegacyElement was an enum (allowing `case CONSTANT:` shorthand) but is now
+        // a class to support datapack-defined elements — switch needs the qualified == form.
+        LegacyElement el = atom.getElement();
+        if (el == LegacyElement.FLUORINE) return DestroyMolecules.FLUORIDE;
+        if (el == LegacyElement.CHLORINE) return DestroyMolecules.CHLORIDE;
+        if (el == LegacyElement.IODINE) return DestroyMolecules.IODIDE;
+        throw new GenericReactionGenerationException(el.toString() + " is not a halogen.");
     };
     
 };
