@@ -47,6 +47,15 @@ public enum DestroyPackets implements BasePacketPayload.PacketTypeProvider {
     // Vat material datapack → client sync (T2a break-in).
     SYNC_VAT_MATERIALS(petrolpark.mc.destroy.core.chemistry.vat.material.SyncVatMaterialsS2CPacket.class,
         petrolpark.mc.destroy.core.chemistry.vat.material.SyncVatMaterialsS2CPacket.STREAM_CODEC),
+    // Datapack-defined chemistry elements → client sync (Phase 2b custom elements).
+    SYNC_ELEMENTS(petrolpark.mc.destroy.core.chemistry.data.SyncElementsS2CPacket.class,
+        petrolpark.mc.destroy.core.chemistry.data.SyncElementsS2CPacket.STREAM_CODEC),
+    // Datapack-defined chemistry molecules → client sync (Phase 2a data-driven molecules).
+    SYNC_MOLECULES(petrolpark.mc.destroy.core.chemistry.data.SyncMoleculesS2CPacket.class,
+        petrolpark.mc.destroy.core.chemistry.data.SyncMoleculesS2CPacket.STREAM_CODEC),
+    // Datapack-defined chemistry reactions → client sync (Phase 1b data-driven reactions).
+    SYNC_REACTIONS(petrolpark.mc.destroy.core.chemistry.data.SyncReactionsS2CPacket.class,
+        petrolpark.mc.destroy.core.chemistry.data.SyncReactionsS2CPacket.STREAM_CODEC),
     // ExtendedInventory size change broadcast (Creatine consumption etc.).
     EXTRA_INVENTORY_SIZE_CHANGE(
         petrolpark.mc.destroy.core.extendedinventory.ExtraInventorySizeChangeS2CPacket.class,

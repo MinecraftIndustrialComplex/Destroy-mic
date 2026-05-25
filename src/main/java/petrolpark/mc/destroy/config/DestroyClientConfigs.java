@@ -6,6 +6,8 @@ public class DestroyClientConfigs extends DestroyConfigBase {
 
     public final ConfigBool tempramentalItemDescriptions = b(true, "TempramentalItemDescriptions", Comments.temperamentalItemDescriptions);
 
+    public final ConfigBool forkWelcomeMessage = b(true, "ForkWelcomeMessage", Comments.forkWelcomeMessage);
+
     public final ClientPollutionConfigs pollution = nested(0, ClientPollutionConfigs::new, "Pollution");
     public final DestroyClientChemistryConfigs chemistry = nested(0, DestroyClientChemistryConfigs::new, Comments.chemistry);
     public final DestroyMenuButtonConfig configurationButtons = nested(0, DestroyMenuButtonConfig::new, Comments.configurationButtons);
@@ -75,6 +77,7 @@ public class DestroyClientConfigs extends DestroyConfigBase {
         static String
             chemistry = "Many many molecules",
             configurationButtons = "The buttons to open Destroy's configurations which appear on the main menu and pause menu",
-            temperamentalItemDescriptions = "Enable the tooltip for Items which are likely to change in the full release of Destroy.";
+            temperamentalItemDescriptions = "Enable the tooltip for Items which are likely to change in the full release of Destroy.",
+            forkWelcomeMessage = "Show an in-chat notice on world join explaining that this is an unofficial 1.21.1 community port, with links to the Petrolpark Discord and the fork's GitHub repository. Set to false to silence the notice.";
     }
 }

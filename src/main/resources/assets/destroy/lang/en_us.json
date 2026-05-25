@@ -1,4 +1,9 @@
 {
+    "destroy.fork.welcome.header": "[Destroy · Unofficial 1.21.1 Port]",
+    "destroy.fork.welcome.body": "This is a community fork of Petrolpark's Destroy. The original mod targets Forge 1.20.1; this build is an authorised but unofficial port maintained by NHblock.",
+    "destroy.fork.welcome.links": "Report bugs or get help: %s  ·  %s",
+    "destroy.fork.welcome.discord": "Petrolpark Discord",
+    "destroy.fork.welcome.github": "Fork repository on GitHub",
     "advancement.destroy.root": "Destroy",
     "advancement.destroy.acetone": "Di-chromate, Die!",
     "advancement.destroy.acetone.description": "Sus out how to turn propanol into acetone",

@@ -197,11 +197,47 @@ public class VatControllerBlockEntity extends SmartBlockEntity implements IHaveL
     public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
         // attach VatFluidTankBehaviour (liquid + gas tanks).
         fluidBehaviour = new VatFluidTankBehaviour(this, DEFAULT_CAPACITY);
+        // Keep cachedMixture in sync with tank state for any drain/fill path that goes
+        // through the SmartFluidTankBehaviour fluid-update notifier (pumps, vent flush,
+        // upstream addFluid). Without it, post-drain ticks may write back a stale cachedMixture
+        // and revert player-visible changes.
+        //
+        // Why this callback does NOT call updateGasVolume(): updateGasVolume's setFluid would
+        // reset the gas tank's {@code flushed=false}, defeating the
+        // {@code !isEmptyOrFullOfAir} vent gate and triggering a per-tick flush cycle whenever
+        // OPEN_VENT is active. Gas-side rebalancing is done in
+        // {@link VatTankWrapper#updateVatGasVolume} (where it runs BEFORE the cachedMixture
+        // rebuild so {@link VatFluidTankBehaviour#getCombinedMixture}'s scale factor stays 1).
+        //
+        // refreshingCachedMixture is a single-frame re-entrance guard so internal setFluid
+        // chains during a rebuild do not recurse.
+        //
+        // Heat preservation: cachedMixture.heat() applies energy in memory only; rebuilding
+        // from the cold tank NBTs would wipe accumulated heat. Capture the warm temperature
+        // before the refresh and restore it after so heat persists across extractions.
+        fluidBehaviour.whenFluidUpdates(() -> {
+            if (refreshingCachedMixture) return;
+            refreshingCachedMixture = true;
+            try {
+                float warmTemperature = (cachedMixture != null) ? cachedMixture.getTemperature() : -1f;
+                updateCachedMixture();
+                if (warmTemperature > 0f && cachedMixture != null
+                    && cachedMixture.getTemperature() < warmTemperature) {
+                    cachedMixture.setTemperature(warmTemperature);
+                }
+            } finally {
+                refreshingCachedMixture = false;
+            }
+        });
         behaviours.add(fluidBehaviour);
         // advancement behaviour (USE_VAT trigger award site).
         advancementBehaviour = new DestroyAdvancementBehaviour(this, petrolpark.mc.destroy.DestroyAdvancementTrigger.USE_VAT);
         behaviours.add(advancementBehaviour);
     }
+
+    /** Re-entrance guard for the {@code whenFluidUpdates} callback. {@link #updateGasVolume}
+     * triggers another tank-update which would otherwise re-fire the callback and recurse.*/
+    private boolean refreshingCachedMixture = false;
 
     /** Client branch keeps S241 animation
  * chaser + S245 addParticles call.
@@ -442,28 +478,17 @@ public class VatControllerBlockEntity extends SmartBlockEntity implements IHaveL
                 "[VAT-DBG]   shouldUpdate=FALSE → tanks unchanged this tick");
         }
 
-        // Gas venting — pressure-deviation gate.
-        // {@code !isEmptyOrFullOfAir()} gate which blocked re-flushing after the {@code flushed}
-        // flag was set on initial atmosphere fill. Problem: heating the vat raises
-        // {@code cachedMixture.getTemperature()} (in-memory mutation) without writing back to
-        // tanks → tank still holds airMixture(initial-T) at original molar density → pressure
-        // formula {@code P = R·T·c·1000 - AIR_PRESSURE} returns highly positive at hot vat T.
-        // Open vent never fired because {@code flushed=true}. Sequence A (heat-then-vent): vent
-        // does nothing, P stuck at +189 kPa. Sequence B (vent-then-heat): flushed=true persists,
-        // P climbs unchecked → vat explodes from over-pressure with vent OPEN.
-        // New gate: fire whenever pressure deviates from atmospheric by > 1 kPa. {@link
-        // MixtureFluid#airMixture} computes molar density to give P ≈ 0 at any T, so flush at
-        // current vat T snaps pressure back to atmospheric. After flush, pressure ≈ 0 → gate
-        // self-quiets (no per-tick wasted flush).
-        // Vacuum case still skipped via {@code !isEmpty()} gate — at full vacuum the gas tank is
-        // empty and we have no contents to vent OUT. User must warm vat above N₂/O₂ boiling
-        // points to re-evaporate liquid air → gas tank refills → vent then works.
-        // that single check to revert. Use case where this breaks: any consumer that
-        // relies on {@code flushed=true} as "post-flush stable state" (none in current code).
+        // Gas venting — fires only when the gas tank holds reaction-produced gas, not just
+        // the initial atmospheric air. Matches the upstream 1.20.1 gate exactly:
+        //   !gasHandler.isEmptyOrFullOfAir() == (!isEmpty() && !flushed)
+        // {@code flushed} is set true by flush() and reset false by onContentsChanged whenever
+        // new gas enters the tank. With an idle air-only vat the gate stays closed, so heat
+        // applied to the vat is not wiped out by a per-tick flush; once a reaction generates
+        // new gas, flushed flips to false, the gate opens, the gas is vented, and flushed
+        // becomes true again — the gate self-quiets after each event.
         VatSideBlockEntity openVent = getOpenVent();
         if (openVent != null && fluidBehaviour.getGasHandler() != null
-            && !fluidBehaviour.getGasHandler().isEmpty()
-            && Math.abs(getPressure()) > 1000f) {
+            && !fluidBehaviour.getGasHandler().isEmptyOrFullOfAir()) {
             FluidStack vented = fluidBehaviour.flush(cachedMixture.getTemperature());
             if (shouldLog) {
                 petrolpark.mc.destroy.Destroy.LOGGER.info(
@@ -996,6 +1021,15 @@ public class VatControllerBlockEntity extends SmartBlockEntity implements IHaveL
         if (hasLevel() && getLevel().isClientSide()) return pressure.getChaseTarget();
         if (vat.isEmpty()) return 0f;
         if (fluidBehaviour == null) return 0f;
+        // An OPEN_VENT physically equalizes the vat's interior with the atmosphere. Any reading
+        // is atmospheric (pressure delta = 0). This guards the heat path against the
+        // overpressure-explosion check: a 15 MW blaze burner raises in-memory cachedMixture
+        // temperature dramatically each tick, and the hybrid formula below (in-memory T × stored
+        // gas-tank concentration) would otherwise diverge from real physics and trip the
+        // {@code getPercentagePressure() >= 1} explode gate the moment heating begins.
+        // Reaction-emitted gas is still purged through the side vent via the
+        // {@code !isEmptyOrFullOfAir()} tick gate (which is independent of this method).
+        if (openVentPos != null) return 0f;
         // VatFluidTank is doubly-nested (VatFluidTankBehaviour.VatTankSegment.VatFluidTank); use var
         // to avoid the fully-qualified spelling. We only need isEmpty / getFluid / getFluidAmount /
         // getCapacity here, all defined on the parent FluidTank class.
@@ -1312,8 +1346,14 @@ public class VatControllerBlockEntity extends SmartBlockEntity implements IHaveL
         protected void updateVatGasVolume(FluidStack drained, FluidAction action) {
             VatControllerBlockEntity vc = vatControllerGetter.get();
             if (action == FluidAction.EXECUTE && !drained.isEmpty() && vc != null && !vc.getLevel().isClientSide()) {
-                vc.updateCachedMixture();
+                // Order matters: expand the gas tank to fill the new headspace BEFORE
+                // rebuilding cachedMixture. Otherwise getCombinedMixture sees totalVolume <
+                // vatCapacity (gas tank still at old size, liquid just shrunk), then
+                // setMixture's writeback at vat.getCapacity() can leave the liquid tank
+                // out of sync — the round-trip math only conserves moles when both ends
+                // use the same effective volume.
                 vc.updateGasVolume();
+                vc.updateCachedMixture();
             }
         }
 

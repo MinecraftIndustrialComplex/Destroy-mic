@@ -451,8 +451,19 @@ public class VatSideBlockEntity extends CopycatBlockEntity
         if (controller == null) return false;
         if (direction == Direction.DOWN) return true;
         if (direction == Direction.UP) return !controller.canFitFluid();
-        // Current stub VatControllerBE only has getRenderedFluidLevel (getFluidLevel deferred) — reuse for both.
-        return pipeHeightAboveVatBase() < controller.getRenderedFluidLevel(partialTicks == null ? 0f : partialTicks);
+        // Server path uses the authoritative {@link VatControllerBlockEntity#getFluidLevel}
+        // (server-side tank.getFluidAmount); client path keeps the lerped renderer value.
+        // The original stub fell back to {@code getRenderedFluidLevel(0f)} for both sides,
+        // which broke server-side extraction: the per-tick {@code setMixture} writeback
+        // round-trips the liquid tank (drain to 0 → fill back), and
+        // {@code getTotalUnits(0f)} returns the animation START frame (= 0 right after the
+        // drain step), so isPipeSubmerged saw fluid level = 0 and routed
+        // {@link VatSideFluidCapability#drain} to the GAS tank instead of LIQUID — second-
+        // and-onward extractions pulled air while the liquid level appeared frozen.
+        if (client) {
+            return pipeHeightAboveVatBase() < controller.getRenderedFluidLevel(partialTicks == null ? 0f : partialTicks);
+        }
+        return pipeHeightAboveVatBase() < controller.getFluidLevel();
     }
 
     /** Used for fluid-stream position calculation in VatSideRenderer + isPipeSubmerged.

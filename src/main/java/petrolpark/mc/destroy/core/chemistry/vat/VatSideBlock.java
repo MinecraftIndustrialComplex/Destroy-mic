@@ -486,10 +486,29 @@ public class VatSideBlock extends CopycatBlock implements SpecialBlockItemRequir
                         return lastRecipe;
                     }
                     @Override public net.neoforged.neoforge.fluids.FluidStack drain(net.neoforged.neoforge.fluids.FluidStack resource, net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction action) {
-                        return vatController.getLiquidTank().drain(resource, action);
+                        net.neoforged.neoforge.fluids.FluidStack s = vatController.getLiquidTank().drain(resource, action);
+                        afterLiquidDrain(s, action);
+                        return s;
                     }
                     @Override public net.neoforged.neoforge.fluids.FluidStack drain(int maxDrain, net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction action) {
-                        return vatController.getLiquidTank().drain(maxDrain, action);
+                        net.neoforged.neoforge.fluids.FluidStack s = vatController.getLiquidTank().drain(maxDrain, action);
+                        afterLiquidDrain(s, action);
+                        return s;
+                    }
+                    /** Mirror {@code VatTankWrapper.updateVatGasVolume}: after the liquid
+                     * level drops, expand the gas tank to fill the new headspace AND refresh
+                     * cachedMixture so the next vat tick's writeback uses the post-drain
+                     * chemistry. Without this synchronous refresh, cachedMixture stays at the
+                     * pre-drain composition and setMixture's writeback at vat.getCapacity()
+                     * restores the original liquid level — Create's whenFluidUpdates callback
+                     * fires too lazily (gated on syncCooldown) to plug this hole on its own.*/
+                    private void afterLiquidDrain(net.neoforged.neoforge.fluids.FluidStack drained, net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction action) {
+                        if (action == net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction.EXECUTE
+                            && !drained.isEmpty()
+                            && level != null && !level.isClientSide()) {
+                            vatController.updateGasVolume();
+                            vatController.updateCachedMixture();
+                        }
                     }
                 };
             }
