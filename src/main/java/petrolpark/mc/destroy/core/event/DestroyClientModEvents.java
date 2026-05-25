@@ -54,6 +54,38 @@ public class DestroyClientModEvents {
     }
 
     /**
+     * Scan every active resource pack for atom JSON models under
+     * {@code assets/&lt;ns&gt;/models/chemistry/atom/*.json} and add each to the standalone-model
+     * pipeline. Without this, datapack-defined elements that ship their atom model in a
+     * resource pack would fail texture stitching at atlas build time — the atlas only includes
+     * textures referenced by registered models, and datapack-element {@code PartialModel.of}
+     * calls happen during {@code SyncElementsS2CPacket.handle()} which fires AFTER the atlas
+     * is already built.
+     *
+     * <p>Pre-registering every {@code chemistry/atom} model regardless of whether a datapack
+     * actually defines a matching element is wasteful by a few KB but harmless — unused
+     * standalone models are just baked once and never referenced.</p>
+     */
+    @SubscribeEvent
+    public static final void registerAtomStandaloneModels(net.neoforged.neoforge.client.event.ModelEvent.RegisterAdditional event) {
+        net.minecraft.server.packs.resources.ResourceManager rm =
+            net.minecraft.client.Minecraft.getInstance().getResourceManager();
+        java.util.Map<net.minecraft.resources.ResourceLocation, net.minecraft.server.packs.resources.Resource> models =
+            rm.listResources("models/chemistry/atom",
+                rl -> rl.getPath().endsWith(".json"));
+        for (net.minecraft.resources.ResourceLocation modelFile : models.keySet()) {
+            // Convert "<ns>:models/chemistry/atom/foo.json" → ModelResourceLocation
+            // "<ns>:chemistry/atom/foo" (no "models/" prefix, no ".json").
+            String trimmed = modelFile.getPath();
+            if (trimmed.startsWith("models/")) trimmed = trimmed.substring("models/".length());
+            if (trimmed.endsWith(".json")) trimmed = trimmed.substring(0, trimmed.length() - ".json".length());
+            net.minecraft.resources.ResourceLocation modelId =
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(modelFile.getNamespace(), trimmed);
+            event.register(net.minecraft.client.resources.model.ModelResourceLocation.standalone(modelId));
+        }
+    }
+
+    /**
  * Register {@link SmogAffectedBlockColor} variants on vanilla blocks so their tint darkens with
  * chunk SMOG level.
 */
