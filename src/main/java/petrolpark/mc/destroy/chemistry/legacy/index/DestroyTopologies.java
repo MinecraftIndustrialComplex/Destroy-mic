@@ -114,6 +114,79 @@ public class DestroyTopologies {
         // TODO symmetries
         .build("cyclohexene"),
 
+    CYCLOHEXANE = create(LegacyElement.CARBON) // 0
+        .sideChain(new Vec3(-sin(30), -cos(30), 0), new Vec3(-sin(30), -cos(30), 0), BondType.SINGLE)
+        .sideChain(new Vec3(-sin(30), -cos(30), 0.5d).normalize(), new Vec3(-sin(30), -cos(30), 0.5d).normalize(), BondType.SINGLE)
+        .atom(LegacyElement.CARBON, new Vec3(-sin(30), cos(30), 0)) // 1
+            .withBondTo(0, BondType.SINGLE)
+            .withSideBranch(new Vec3(-0.75d, 0, 0.5d).normalize(), new Vec3(-0.75d, 0, 0.5d).normalize(), BondType.SINGLE)
+            .withSideBranch(new Vec3(-0.75d, 0, -.5d).normalize(), new Vec3(-0.75d, 0, -0.5d).normalize(), BondType.SINGLE)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(0, 2 * cos(30) - 0.1d, -0.2d)) // 2
+            .withBondTo(1, BondType.SINGLE)
+            .withSideBranch(new Vec3(-cos(30), sin(30), 0.1).normalize(), new Vec3(-cos(30), sin(30), 0.1).normalize(), BondType.SINGLE)
+            .withSideBranch(new Vec3(0.1d, 0, -1).normalize(), new Vec3(0.1d, 0, -1).normalize(), BondType.SINGLE)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(0.8d, 2 * cos(30) - 0.1d, 0.2d)) // 3
+            .withBondTo(2, BondType.SINGLE)
+            .withSideBranch(new Vec3(cos(30), sin(30), -0.1).normalize(), new Vec3(cos(30), sin(30), -0.1).normalize(), BondType.SINGLE)
+            .withSideBranch(new Vec3(-0.1d, 0, 1).normalize(), new Vec3(-0.1d, 0, 1).normalize(), BondType.SINGLE)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(0.8d + sin(30), cos(30), 0)) // 4
+            .withBondTo(3, BondType.SINGLE)
+            .withSideBranch(new Vec3(0.75d, 0, 0.5d).normalize(), new Vec3(0.75d, 0, 0.5d).normalize(), BondType.SINGLE)
+            .withSideBranch(new Vec3(0.75d, 0, -.5d).normalize(), new Vec3(0.75d, 0, -0.5d).normalize(), BondType.SINGLE)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(0.8d, 0d, 0d)) // 5
+            .withBondTo(4, BondType.SINGLE)
+            .withBondTo(0, BondType.SINGLE)
+            .withSideBranch(new Vec3(sin(30), -cos(30), 0d), new Vec3(sin(30), -cos(30), 0d), BondType.SINGLE)
+            .withSideBranch(new Vec3(sin(30), -cos(30), 0.5d).normalize(), new Vec3(sin(30), -cos(30), 0.5d).normalize(), BondType.SINGLE)
+            .attach()
+        // TODO symmetries
+        .build("cyclohexane"),
+
+    NAPHTHALENE = create(LegacyElement.CARBON) // 0
+        .sideChain(new Vec3(-cos(30), -sin(30), 0d), new Vec3(-cos(30), -sin(30), -0.5d))
+        .atom(LegacyElement.CARBON, new Vec3(0d, 1d, 0d)) // 1
+            .withSideBranch(new Vec3(-cos(30), sin(30), 0d).normalize(), new Vec3(-1d, 0d, 0d).normalize())
+            .withBondTo(0, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(cos(30), 1d + sin(30), 0d)) // 2
+            .withSideBranch(new Vec3(0d, 1d, 0d), new Vec3(-cos(60), sin(60), 0d))
+            .withBondTo(1, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(2d * cos(30), 1d, 0d)) // 3 (junction)
+            .withBondTo(2, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(3d * cos(30), 1d + sin(30), 0d)) // 4
+            .withSideBranch(new Vec3(0d, 1d, 0d), new Vec3(0d, 1d, 0.5d).normalize())
+            .withBondTo(3, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(4d * cos(30), 1d, 0d)) // 5
+            .withSideBranch(new Vec3(cos(30), sin(30), 0d), new Vec3(cos(60), sin(60), 0d))
+            .withBondTo(4, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(4d * cos(30), 0d, 0d)) // 6
+            .withSideBranch(new Vec3(cos(30), -sin(30), 0d), new Vec3(1d, 0d, 0d))
+            .withBondTo(5, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(3d * cos(30), -sin(30), 0d)) // 7
+            .withSideBranch(new Vec3(0d, -1d, 0d), new Vec3(0d, -1d, 0.5d).normalize())
+            .withBondTo(6, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(2d * cos(30), 0d, 0d)) // 8 (junction)
+            .withBondTo(3, BondType.AROMATIC)
+            .withBondTo(7, BondType.AROMATIC)
+            .attach()
+        .atom(LegacyElement.CARBON, new Vec3(cos(30), -sin(30), 0d)) // 9
+            .withSideBranch(new Vec3(0d, -1d, 0d), new Vec3(cos(60), -sin(60), 0d))
+            .withBondTo(0, BondType.AROMATIC)
+            .withBondTo(8, BondType.AROMATIC)
+            .attach()
+        // TODO symmetries
+        .build("naphthalene"),
+
     CYCLOPENTADIENE = create(LegacyElement.CARBON) // 0
         .atom(LegacyElement.CARBON, new Vec3(0d, 1d, 0d)) // 1
             .withBondTo(0, BondType.SINGLE)
