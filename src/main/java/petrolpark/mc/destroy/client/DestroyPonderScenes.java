@@ -148,9 +148,10 @@ public class DestroyPonderScenes {
         HELPER.forComponents(DestroyBlocks.COLORIMETER)
             .addStoryBoard("colorimeter", ChemistryPonderScenes::colorimeter);
 
-        // DestroyMiscPonderScenes partial port (T2c). 2 of 4 storyboards wired real:
-        // - reactions on MECHANICAL_MIXER (basic scene, self-contained)
-        // vatInteraction stub registered on BLAZE_BURNER (T2a Vat full defer).
+        // DestroyMiscPonderScenes — 3 storyboards wired:
+        // - redstoneProgrammer on REDSTONE_PROGRAMMER
+        // - reactions on MECHANICAL_MIXER (CHEMISTRY tag)
+        // - vatInteraction on BLAZE_BURNER (CHEMISTRY tag)
         HELPER.forComponents(DestroyBlocks.REDSTONE_PROGRAMMER)
             .addStoryBoard("redstone_programmer", DestroyMiscPonderScenes::redstoneProgrammer);
         HELPER.forComponents(AllBlocks.MECHANICAL_MIXER)
@@ -158,11 +159,8 @@ public class DestroyPonderScenes {
         HELPER.forComponents(AllBlocks.BLAZE_BURNER)
             .addStoryBoard("vat/interaction", DestroyMiscPonderScenes::vatInteraction, DestroyPonderTags.CHEMISTRY);
 
-        // S202+ 起逐步添加其余 scene registration (ExplosivesPonderScenes / etc.) +
-        // 替换 pollution 1 stub + processing 2 stubs + chemistry 11 stubs (need Vat subsystem
-        // port first) + dispatcher-wired periodicTable scene on individual element blocks
-        // (needs PonderIndex-reflection dispatcher port). DestroyMiscPonderScenes vatInteraction
-        // stub → real body awaits T2a Vat full port.
+        // TODO follow-ups: dispatcher-wired periodicTable scene on individual element blocks
+        // (needs PonderIndex-reflection dispatcher port).
     }
 
     /**

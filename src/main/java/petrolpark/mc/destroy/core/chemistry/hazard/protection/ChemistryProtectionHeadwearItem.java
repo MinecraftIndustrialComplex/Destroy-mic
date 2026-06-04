@@ -68,7 +68,13 @@ public class ChemistryProtectionHeadwearItem extends Item implements Equipable {
 
     @Override
     public int getMaxDamage(ItemStack stack) {
-        return configuredDurability == null ? 100 : configuredDurability.get().get();
+        if (configuredDurability == null) return 100;
+        // Recipe reload / data-driven ItemStack construction may call this before configs have
+        // loaded (e.g. when another mod's mixin queries an ingredient stack during reload).
+        // Reading the raw ConfigValue in that window throws IllegalStateException; fall back to
+        // the same 100 sentinel until configs are ready.
+        return petrolpark.mc.destroy.config.DestroyConfigs.safeInt(
+            () -> configuredDurability.get().get(), 100);
     }
 
     @Override

@@ -145,6 +145,10 @@ dependencies {
     // compilation. Mixin gates by mod presence at runtime via PetrolparkMixinPlugin.shouldApplyMixin
     // so this jar isn't a runtime requirement for users without Create: Connected installed.
     compileOnly(files("../../../_Migration-Toolkit-1.21/lib-1.21/create_connected-1.1.16-mc1.21.1.jar"))
+
+    // FarmersDelight — required for compat.farmersdelight.CuttingBoardBlockEntityMixin source
+    // compilation. Same mod-gating mechanism as Create: Connected; not bundled at runtime.
+    compileOnly(files("../../../_Migration-Toolkit-1.21/lib-1.21/「农夫乐事_本体」FarmersDelight-1.21.1-1.3.2.jar"))
 }
 
 jar {

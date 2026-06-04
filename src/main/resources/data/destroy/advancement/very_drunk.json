@@ -1,9 +1,8 @@
 {
     "conditions": [
       {
-        "type": "petrolpark:config_boolean",
-        "mod": "destroy",
-        "value": "enableAlcohol"
+        "type": "petrolpark:config_bool",
+        "key": "destroy:common.enableAlcohol"
       }
     ],
     "parent": "destroy:drunk",

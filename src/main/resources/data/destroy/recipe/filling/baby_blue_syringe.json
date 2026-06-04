@@ -2,9 +2,8 @@
   "type": "create:filling",
   "conditions": [
     {
-      "type": "petrolpark:config_boolean",
-      "mod": "destroy",
-      "value": "enableBabyBlue"
+      "type": "petrolpark:config_bool",
+      "key": "destroy:common.enableBabyBlue"
     }
   ],
   "ingredients": [

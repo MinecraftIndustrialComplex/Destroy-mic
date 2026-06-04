@@ -147,6 +147,14 @@ public class DestroyCommonEvents {
             villager.goalSelector.addGoal(0,
                 new petrolpark.mc.destroy.content.sandcastle.BuildSandCastleGoal(villager, true));
         }
+
+        // Award SHOOT_HEFTY_BEETROOT when a player fires a Hefty-Beetroot-tagged potato through a
+        // Potato Cannon (Create). Mirrors upstream 1.20.1 hook.
+        if (event.getEntity() instanceof com.simibubi.create.content.equipment.potatoCannon.PotatoProjectileEntity projectile
+            && projectile.getOwner() instanceof net.minecraft.server.level.ServerPlayer player
+            && petrolpark.mc.destroy.DestroyTags.Items.HEFTY_BEETROOTS.matches(projectile.getItem().getItem())) {
+            petrolpark.mc.destroy.DestroyAdvancementTrigger.SHOOT_HEFTY_BEETROOT.award(player.level(), player);
+        }
     }
 
     /**
@@ -234,6 +242,27 @@ public class DestroyCommonEvents {
         if (stack.getItem() instanceof BlowpipeItem blowpipe) {
             if (blowpipe.finishBlowing(stack, world, player)) {
                 event.setCanceled(true);
+                return;
+            }
+            // Left-click fluid extraction: matches Destroy's UX convention where every other
+            // fluid-storage item (test tube / beaker / measuring cylinder, all via
+            // IMixtureStorageItem.defaultAttack above) extracts on LEFT-click. Upstream's
+            // BlowpipeItem only drained via useOn (right-click), which inconsistency users
+            // hit immediately ("吹管左键流体容器不能取出熔融硼硅酸玻璃"). Only fire when:
+            //   1. The blowpipe has a recipe (REQUIRED_FLUID ingredient is set), and
+            //   2. The TANK is currently empty (mid-blow or post-blow must not refill).
+            net.neoforged.neoforge.fluids.crafting.SizedFluidIngredient ingredient =
+                petrolpark.mc.destroy.content.processing.glassblowing.BlowpipeItem.getFluidIngredient(stack);
+            net.neoforged.neoforge.fluids.FluidStack tank = stack.getOrDefault(
+                petrolpark.mc.destroy.DestroyDataComponents.BLOWPIPE_TANK,
+                net.neoforged.neoforge.fluids.FluidStack.EMPTY);
+            if (ingredient != null && tank.isEmpty()) {
+                net.minecraft.world.InteractionResult result = blowpipe.tryDrainFromBlock(
+                    world, pos, event.getFace(), stack, ingredient);
+                if (result == net.minecraft.world.InteractionResult.SUCCESS
+                    || result == net.minecraft.world.InteractionResult.FAIL) {
+                    event.setCanceled(true);
+                }
             }
         }
     }
@@ -277,6 +306,16 @@ public class DestroyCommonEvents {
                 });
                 event.setCanceled(true);
             }
+        }
+
+        // Fireproof Flint and Steel — used to light a fire from a fireproofed flint & steel
+        // awards FIREPROOF_FLINT_AND_STEEL and consumes one durability.
+        if (stack.getItem() == net.minecraft.world.item.Items.FLINT_AND_STEEL
+            && petrolpark.mc.destroy.content.product.fireretardant.FireproofingHelper.isFireproof(world.registryAccess(), stack)) {
+            petrolpark.mc.destroy.DestroyAdvancementTrigger.FIREPROOF_FLINT_AND_STEEL.award(world, player);
+            stack.hurtAndBreak(1, player, net.minecraft.world.entity.EquipmentSlot.MAINHAND);
+            event.setCanceled(true);
+            event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
         }
     }
 

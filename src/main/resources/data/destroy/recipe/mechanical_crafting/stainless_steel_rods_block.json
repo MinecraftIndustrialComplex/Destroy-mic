@@ -13,5 +13,6 @@
   },
   "result": {
     "id": "destroy:stainless_steel_rods_block"
-  }
+  },
+  "accept_mirrored": false
 }

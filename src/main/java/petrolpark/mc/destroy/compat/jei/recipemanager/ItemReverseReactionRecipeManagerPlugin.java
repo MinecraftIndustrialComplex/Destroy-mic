@@ -13,7 +13,9 @@ import mezz.jei.api.recipe.advanced.IRecipeManagerPlugin;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeHolder;
 
+import petrolpark.mc.destroy.Destroy;
 import petrolpark.mc.destroy.chemistry.legacy.LegacyReaction;
 import petrolpark.mc.destroy.compat.jei.category.GenericReactionCategory;
 import petrolpark.mc.destroy.compat.jei.category.ReactionCategory;
@@ -43,13 +45,17 @@ public class ItemReverseReactionRecipeManagerPlugin implements IRecipeManagerPlu
             .map(ITypedIngredient::getIngredient)
             .ifPresent(stack -> {
                 Stream<? extends ReactionRecipe> recipesToCheck;
+                String holderIdPrefix;
                 if (recipeCategory instanceof GenericReactionCategory) {
                     recipesToCheck = GenericReactionCategory.RECIPES.values().stream();
+                    holderIdPrefix = "reverse_generic_reaction_";
                 } else if (recipeCategory instanceof ReactionCategory) {
                     recipesToCheck = ReactionCategory.RECIPES.values().stream();
+                    holderIdPrefix = "reverse_reaction_";
                 } else {
                     return;
                 }
+                int[] counter = { 0 };
                 recipesToCheck.filter(recipe -> {
                     LegacyReaction reaction = recipe.getReaction();
                     boolean searchCatalysts = focus.getRole() == RecipeIngredientRole.CATALYST;
@@ -65,15 +71,24 @@ public class ItemReverseReactionRecipeManagerPlugin implements IRecipeManagerPlu
                         ((ir.isCatalyst() && searchCatalysts) || (!ir.isCatalyst() && searchInputs))
                             && ir.isItemValid(stack))) return true;
 
-                    // line `if (searchOutputs && reaction.hasResult()) reaction.getResult()...anyMatch(...)`
-                    // was an unbound expression statement. Preserved 1:1; behavior matches upstream.)
-                    if (searchOutputs && reaction.hasResult()) {
-                        reaction.getResult().getAllPrecipitates().stream()
-                            .anyMatch(p -> ItemStack.matches(p.getPrecipitate(), stack));
-                    }
+                    // Precipitate outputs (upstream had this as a no-op expression with the
+                    // `anyMatch` result thrown away; the missing `return` is restored so item
+                    // outputs of irreversible reactions actually surface in reverse lookup).
+                    if (searchOutputs && reaction.hasResult()
+                        && reaction.getResult().getAllPrecipitates().stream()
+                            .anyMatch(p -> ItemStack.matches(p.getPrecipitate(), stack))) return true;
 
                     return false;
-                }).map(r -> (T) r).forEach(recipes::add);
+                }).forEach(r -> {
+                    // Wrap each ReactionRecipe in a synthetic RecipeHolder — Create's
+                    // CreateRecipeCategory<R> implements IRecipeCategory<RecipeHolder<R>>, so
+                    // JEI's setRecipe(Object) bridge does `checkcast RecipeHolder` on every
+                    // recipe the plugin returns. A bare ReactionRecipe here crashes the layout
+                    // build with the in-game "该配方已崩溃 / destroy:reaction" overlay because
+                    // the cast fails. Holder id only needs to be unique within this list.
+                    recipes.add((T) new RecipeHolder<>(
+                        Destroy.asResource(holderIdPrefix + counter[0]++), r));
+                });
             });
         return recipes;
     }

@@ -9,7 +9,7 @@
   "recipe_book_tab": "meals",
   "ingredients": [
     {
-      "tag": "c:foods/raw_porkchop"
+      "tag": "c:foods/raw_pork"
     },
     {
       "item": "destroy:mashed_potato"

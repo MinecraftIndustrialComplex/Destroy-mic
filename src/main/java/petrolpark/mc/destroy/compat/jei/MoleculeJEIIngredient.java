@@ -1,7 +1,8 @@
 package petrolpark.mc.destroy.compat.jei;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -29,6 +30,7 @@ import net.minecraft.world.item.TooltipFlag;
 
 import petrolpark.mc.destroy.Destroy;
 import petrolpark.mc.destroy.chemistry.legacy.LegacySpecies;
+import petrolpark.mc.destroy.chemistry.legacy.LegacySpeciesTag;
 import petrolpark.mc.destroy.chemistry.legacy.index.DestroyMolecules;
 import petrolpark.mc.destroy.compat.jei.render.MoleculeBatchRenderer;
 import petrolpark.mc.destroy.config.DestroyAllConfigs;
@@ -77,6 +79,17 @@ public class MoleculeJEIIngredient {
         public ResourceLocation getResourceLocation(LegacySpecies ingredient) {
             if (ingredient.isNovel()) return Destroy.asResource("novel_molecule");
             return ResourceLocation.parse(ingredient.getFullID());
+        }
+
+        /**
+         * Surface molecule tags to JEI's tag-filter system. JEI's {@code #tagname} search
+         * prefix consults this stream — without it, players couldn't filter by
+         * {@code #carcinogen} / {@code #acutely_toxic} / etc. {@link LegacySpeciesTag#getId()}
+         * returns {@code namespace:id} which {@link ResourceLocation#parse} accepts directly.
+         */
+        @Override
+        public Stream<ResourceLocation> getTagStream(LegacySpecies ingredient) {
+            return ingredient.getTags().stream().map(t -> ResourceLocation.parse(t.getId()));
         }
 
         @Override
@@ -185,10 +198,20 @@ public class MoleculeJEIIngredient {
             tooltip.addAll(MoleculeDisplayItem.getLore(ingredient));
         }
 
+        /**
+         * Mirror the modern {@link #getTooltip(ITooltipBuilder, LegacySpecies, TooltipFlag)}
+         * output as a plain Component list. Some JEI search-index paths (and any older addon
+         * that still calls the deprecated form) read tooltip lines from here for keyword
+         * matching — returning empty would hide tag tooltip lines like "致癌物" from
+         * plain-text search even though they render fine on hover.
+         */
         @Override
         @Deprecated
         public List<Component> getTooltip(LegacySpecies ingredient, TooltipFlag tooltipFlag) {
-            return Collections.emptyList();
+            List<Component> lines = new ArrayList<>();
+            lines.add(ingredient.getName(DestroyAllConfigs.CLIENT.chemistry.iupacNames.get()));
+            lines.addAll(MoleculeDisplayItem.getLore(ingredient));
+            return lines;
         }
     };
 }

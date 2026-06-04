@@ -147,11 +147,11 @@ public enum DestroyRecipeTypes implements IRecipeTypeInfo {
     // mod-bus RegisterEvent picks them up in one shot. Two variants (4 / 5 flight duration).
     @SuppressWarnings("unused")
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<petrolpark.mc.destroy.core.explosion.ExtendedDurationFireworkRocketRecipe>>
-        DURATION_4_FIREWORK_ROCKET = Registers.SERIALIZERS.register("duration_4_firework_rocket",
+        DURATION_4_FIREWORK_ROCKET = Registers.SERIALIZERS.register("duration_4_firework_rocket_crafting",
             () -> petrolpark.mc.destroy.core.explosion.ExtendedDurationFireworkRocketRecipe.DURATION_4_FIREWORK_ROCKET);
     @SuppressWarnings("unused")
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<petrolpark.mc.destroy.core.explosion.ExtendedDurationFireworkRocketRecipe>>
-        DURATION_5_FIREWORK_ROCKET = Registers.SERIALIZERS.register("duration_5_firework_rocket",
+        DURATION_5_FIREWORK_ROCKET = Registers.SERIALIZERS.register("duration_5_firework_rocket_crafting",
             () -> petrolpark.mc.destroy.core.explosion.ExtendedDurationFireworkRocketRecipe.DURATION_5_FIREWORK_ROCKET);
 
     /** Hook the nested {@link Registers} DeferredRegisters onto the mod bus.*/

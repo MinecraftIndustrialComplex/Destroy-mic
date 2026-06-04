@@ -13,6 +13,7 @@ import com.simibubi.create.content.fluids.pipes.FluidPipeBlock;
 import com.simibubi.create.content.fluids.pipes.GlassFluidPipeBlock;
 import com.simibubi.create.content.fluids.potion.PotionFluid.BottleType;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
+import com.simibubi.create.foundation.blockEntity.behaviour.BehaviourType;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import com.simibubi.create.foundation.blockEntity.behaviour.fluid.SmartFluidTankBehaviour;
 import com.simibubi.create.content.redstone.displayLink.DisplayLinkContext;
@@ -86,6 +87,27 @@ public class CentrifugeBlockEntity extends KineticBlockEntity implements IHaveLa
 
     private static final Object centrifugationRecipeKey = new Object();
 
+    /**
+     * Distinct {@link BehaviourType} for the dense-output tank so it doesn't map-collide
+     * with the light-output tank. Both tanks are {@link SmartFluidTankBehaviour}, and
+     * {@link com.simibubi.create.foundation.blockEntity.SmartBlockEntity}'s internal
+     * {@code behaviours} map is keyed by {@code getType()}: two behaviours sharing
+     * {@code SmartFluidTankBehaviour.OUTPUT} would silently overwrite each other on
+     * {@code attachBehaviourLate} → {@code put()}, removing the dense tank from the
+     * lifecycle (no NBT write, no client sync, no tick). Symptom: the dense-output tank
+     * physically held fluid on the server but the goggle tooltip rendered just
+     * "容量: 1,000mB" because client-side {@code getDenseOutputTank().getFluid()} returned
+     * empty.
+     *
+     * <p>The light-output tank is kept on the stock {@code SmartFluidTankBehaviour.OUTPUT}
+     * type so that pre-fix worlds — which serialised their only-surviving tank under
+     * NBT key {@code "OUTPUT"} — load their light-output contents into the light tank
+     * after the fix without a data-fixer. Their dense-output contents are unrecoverable
+     * (the data was never written), but at least the light side persists.</p>
+     */
+    public static final BehaviourType<SmartFluidTankBehaviour> DENSE_OUTPUT =
+        new BehaviourType<>("dense_output");
+
     private SmartFluidTankBehaviour inputTank, denseOutputTank, lightOutputTank;
 
     protected DestroyAdvancementBehaviour advancementBehaviour;
@@ -108,7 +130,7 @@ public class CentrifugeBlockEntity extends KineticBlockEntity implements IHaveLa
     public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
         inputTank = new GeniusFluidTankBehaviour(SmartFluidTankBehaviour.INPUT, this, 1, getEachTankCapacity(), true)
             .whenFluidUpdates(this::onFluidStackChanged);
-        denseOutputTank = new GeniusFluidTankBehaviour(SmartFluidTankBehaviour.OUTPUT, this, 1, getEachTankCapacity(), true)
+        denseOutputTank = new GeniusFluidTankBehaviour(DENSE_OUTPUT, this, 1, getEachTankCapacity(), true)
             .whenFluidUpdates(this::onFluidStackChanged)
             .forbidInsertion();
         lightOutputTank = new GeniusFluidTankBehaviour(SmartFluidTankBehaviour.OUTPUT, this, 1, getEachTankCapacity(), true)
