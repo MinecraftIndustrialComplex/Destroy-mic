@@ -209,35 +209,28 @@ public class VatControllerBlockEntity extends SmartBlockEntity implements IHaveL
         // {@link VatTankWrapper#updateVatGasVolume} (where it runs BEFORE the cachedMixture
         // rebuild so {@link VatFluidTankBehaviour#getCombinedMixture}'s scale factor stays 1).
         //
-        // refreshingCachedMixture is a single-frame re-entrance guard so internal setFluid
-        // chains during a rebuild do not recurse.
-        //
-        // Heat preservation: cachedMixture.heat() applies energy in memory only; rebuilding
-        // from the cold tank NBTs would wipe accumulated heat. Capture the warm temperature
-        // before the refresh and restore it after so heat persists across extractions.
-        fluidBehaviour.whenFluidUpdates(() -> {
-            if (refreshingCachedMixture) return;
-            refreshingCachedMixture = true;
-            try {
-                float warmTemperature = (cachedMixture != null) ? cachedMixture.getTemperature() : -1f;
-                updateCachedMixture();
-                if (warmTemperature > 0f && cachedMixture != null
-                    && cachedMixture.getTemperature() < warmTemperature) {
-                    cachedMixture.setTemperature(warmTemperature);
-                }
-            } finally {
-                refreshingCachedMixture = false;
-            }
-        });
+        // No whenFluidUpdates callback here — the v0.3.0 attempt ran
+        // updateCachedMixture() on EVERY tank change as a "catch-all" for extraction
+        // paths, but it caused a floating-point drift snowball: each rebuild routed
+        // through getCombinedMixture → mix() → scale() recomputes temperature via
+        // heat-energy summation and reapplication, and the round-trip is not bit-exact.
+        // Over the hundreds of tank updates a cooled vat goes through, accumulated
+        // drift inflates concentration counts (1mB liquid tank "containing" 30 mol of
+        // condensed gas was observed) which balloons volHeatCap to the point where
+        // the tick heat loop's kPerTick threshold can never clear 0.001 — heat
+        // exchange locks, temperature can't recover to ambient even after the cooler
+        // is removed. Upstream 1.20.1 has no equivalent callback and never exhibits
+        // the regression. Real extraction paths already call updateCachedMixture
+        // explicitly via {@link VatTankWrapper#updateVatGasVolume}, so the callback
+        // is redundant. Energy is preserved across an extraction-driven rebuild
+        // because {@link LegacyMixture#mix} sums per-mixture energy contributions and
+        // reapplies them via heat() — no warm-temperature ratchet needed.
         behaviours.add(fluidBehaviour);
         // advancement behaviour (USE_VAT trigger award site).
         advancementBehaviour = new DestroyAdvancementBehaviour(this, petrolpark.mc.destroy.DestroyAdvancementTrigger.USE_VAT);
         behaviours.add(advancementBehaviour);
     }
 
-    /** Re-entrance guard for the {@code whenFluidUpdates} callback. {@link #updateGasVolume}
-     * triggers another tank-update which would otherwise re-fire the callback and recurse.*/
-    private boolean refreshingCachedMixture = false;
 
     /** Client branch keeps S241 animation
  * chaser + S245 addParticles call.
@@ -528,7 +521,7 @@ public class VatControllerBlockEntity extends SmartBlockEntity implements IHaveL
         }
         fluidBehaviour.setMixture(cachedMixture, vat.get().getCapacity());
         updateGasVolume();
-        sendData();   // reverted #2 throttling
+        sendData();
     }
 
     
