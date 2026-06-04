@@ -93,16 +93,27 @@ public class ChemicalSpeciesRecipeManagerPlugin implements IRecipeManagerPlugin 
                             petrolpark.mc.destroy.Destroy.asResource("plugin_input_reaction_" + counter[0]++), r));
                     });
                 } else {
-                    // non-Reaction processing recipes that consume this molecule (currently
-                    // empty until DestroyJEI MOLECULES_INPUT/OUTPUT population lands).
+                    // non-Reaction processing recipes that consume this molecule. Populated by
+                    // JeiProcessingRecipeMixin into DestroyJEI.MOLECULES_INPUT.
                     var recipeUses = petrolpark.mc.destroy.compat.jei.DestroyJEI.MOLECULES_INPUT.get(molecule);
                     if (recipeUses != null) {
-                        recipes.addAll(recipeUses.stream()
-                            .filter(recipe -> recipe.getClass().equals(
-                                petrolpark.mc.destroy.compat.jei.DestroyJEI.MIXTURE_APPLICABLE_RECIPE_TYPES.get(recipeCategory.getRecipeType())))
-                            .map(recipe -> (T) new net.minecraft.world.item.crafting.RecipeHolder<>(
-                                petrolpark.mc.destroy.Destroy.asResource("plugin_input_processing_" + counter[0]++), recipe))
-                            .toList());
+                        Class<? extends net.minecraft.world.item.crafting.Recipe<?>> expectedClass =
+                            petrolpark.mc.destroy.compat.jei.DestroyJEI.MIXTURE_APPLICABLE_RECIPE_TYPES.get(recipeCategory.getRecipeType());
+                        if (expectedClass != null) {
+                            // isInstance handles subclass polymorphism: e.g. ElectrolysisRecipe
+                            // extends BasinRecipe and the category builder is parameterised on
+                            // BasinRecipe.class, but the mixin populates MOLECULES_INPUT with
+                            // the concrete ElectrolysisRecipe instance. A naive
+                            // {@code recipe.getClass().equals(BasinRecipe.class)} would reject
+                            // every subclass — was the long-standing reason clicking sodium /
+                            // boric_acid / etc. never surfaced electrolysis or arc-furnace
+                            // recipes in the molecule reverse lookup.
+                            recipes.addAll(recipeUses.stream()
+                                .filter(expectedClass::isInstance)
+                                .map(recipe -> (T) new net.minecraft.world.item.crafting.RecipeHolder<>(
+                                    petrolpark.mc.destroy.Destroy.asResource("plugin_input_processing_" + counter[0]++), recipe))
+                                .toList());
+                        }
                     }
                 }
             }
@@ -123,15 +134,20 @@ public class ChemicalSpeciesRecipeManagerPlugin implements IRecipeManagerPlugin 
                             petrolpark.mc.destroy.Destroy.asResource("plugin_output_reaction_" + counter[0]++), r));
                     });
                 } else {
-                    // non-Reaction processing recipes that produce this molecule.
+                    // non-Reaction processing recipes that produce this molecule. Populated by
+                    // JeiProcessingRecipeMixin into DestroyJEI.MOLECULES_OUTPUT. See the symmetric
+                    // INPUT branch above for the {@code isInstance} rationale (subclass support).
                     var recipeProductions = petrolpark.mc.destroy.compat.jei.DestroyJEI.MOLECULES_OUTPUT.get(molecule);
                     if (recipeProductions != null) {
-                        recipes.addAll(recipeProductions.stream()
-                            .filter(recipe -> recipe.getClass().equals(
-                                petrolpark.mc.destroy.compat.jei.DestroyJEI.MIXTURE_APPLICABLE_RECIPE_TYPES.get(recipeCategory.getRecipeType())))
-                            .map(recipe -> (T) new net.minecraft.world.item.crafting.RecipeHolder<>(
-                                petrolpark.mc.destroy.Destroy.asResource("plugin_output_processing_" + counter[0]++), recipe))
-                            .toList());
+                        Class<? extends net.minecraft.world.item.crafting.Recipe<?>> expectedClass =
+                            petrolpark.mc.destroy.compat.jei.DestroyJEI.MIXTURE_APPLICABLE_RECIPE_TYPES.get(recipeCategory.getRecipeType());
+                        if (expectedClass != null) {
+                            recipes.addAll(recipeProductions.stream()
+                                .filter(expectedClass::isInstance)
+                                .map(recipe -> (T) new net.minecraft.world.item.crafting.RecipeHolder<>(
+                                    petrolpark.mc.destroy.Destroy.asResource("plugin_output_processing_" + counter[0]++), recipe))
+                                .toList());
+                        }
                     }
                 }
             }

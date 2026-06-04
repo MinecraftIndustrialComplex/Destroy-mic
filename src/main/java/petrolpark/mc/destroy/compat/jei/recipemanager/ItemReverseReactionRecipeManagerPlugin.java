@@ -58,26 +58,40 @@ public class ItemReverseReactionRecipeManagerPlugin implements IRecipeManagerPlu
                 int[] counter = { 0 };
                 recipesToCheck.filter(recipe -> {
                     LegacyReaction reaction = recipe.getReaction();
-                    boolean searchCatalysts = focus.getRole() == RecipeIngredientRole.CATALYST;
-                    boolean searchInputs = searchCatalysts
-                        || focus.getRole() == RecipeIngredientRole.INPUT
-                        || (focus.getRole() == RecipeIngredientRole.OUTPUT && reaction.displayAsReversible());
-                    boolean searchOutputs = searchCatalysts
-                        || focus.getRole() == RecipeIngredientRole.OUTPUT
-                        || (focus.getRole() == RecipeIngredientRole.INPUT && reaction.displayAsReversible());
+                    RecipeIngredientRole role = focus.getRole();
 
-                    // Reactants and catalysts
-                    if (reaction.getItemReactants().stream().anyMatch(ir ->
-                        ((ir.isCatalyst() && searchCatalysts) || (!ir.isCatalyst() && searchInputs))
-                            && ir.isItemValid(stack))) return true;
+                    // Plugin scope: SUPPLEMENT JEI's static lookup, never duplicate it. JEI's
+                    // own per-slot ingredient matcher already finds every reaction where the
+                    // focus item appears in a rendered slot of the recipe layout
+                    // (item-reactant INPUT, precipitate OUTPUT, item-catalyst CATALYST). The
+                    // gap is reversible reactions: their two sides are interchangeable in the
+                    // physical sense, but JEI's slot matcher only sees the one direction the
+                    // recipe layout was authored in. For reversible reactions the plugin
+                    // surfaces the "other-side" hits that the static path would miss:
+                    //   * focus OUTPUT + reversible → match item-reactants (INPUT side)
+                    //   * focus INPUT  + reversible → match precipitates (OUTPUT side)
+                    // For irreversible reactions, the static path already does the job — any
+                    // match here would just be a duplicate of what JEI is already rendering
+                    // (was the original bug: item precipitates of irreversible reactions
+                    // showed twice in U/R-key lookups). For CATALYST focus the static path
+                    // also handles item catalysts natively.
+                    if (!reaction.displayAsReversible()) return false;
 
-                    // Precipitate outputs (upstream had this as a no-op expression with the
-                    // `anyMatch` result thrown away; the missing `return` is restored so item
-                    // outputs of irreversible reactions actually surface in reverse lookup).
-                    if (searchOutputs && reaction.hasResult()
-                        && reaction.getResult().getAllPrecipitates().stream()
-                            .anyMatch(p -> ItemStack.matches(p.getPrecipitate(), stack))) return true;
-
+                    if (role == RecipeIngredientRole.OUTPUT) {
+                        // User asked "what makes X" — surface reactions where X is a
+                        // non-catalyst item reactant of a reversible reaction (the reverse
+                        // direction would produce X).
+                        return reaction.getItemReactants().stream()
+                            .anyMatch(ir -> !ir.isCatalyst() && ir.isItemValid(stack));
+                    }
+                    if (role == RecipeIngredientRole.INPUT) {
+                        // User asked "what uses X" — surface reactions where X is a
+                        // precipitate output of a reversible reaction (the reverse direction
+                        // would consume X).
+                        return reaction.hasResult()
+                            && reaction.getResult().getAllPrecipitates().stream()
+                                .anyMatch(p -> ItemStack.matches(p.getPrecipitate(), stack));
+                    }
                     return false;
                 }).forEach(r -> {
                     // Wrap each ReactionRecipe in a synthetic RecipeHolder — Create's
