@@ -46,10 +46,22 @@ import petrolpark.mc.destroy.core.explosion.SmartExplosion;
 public class VatControllerBlockEntity extends SmartBlockEntity implements IHaveLabGoggleInformation, ISpecialWhenHoveredBlockEntity, ThresholdSwitchObservable, TransformableBlockEntity {
 
     /**
- * Stub inventory — 1-slot placeholder so PrecipitateReactionResult.onVatReaction can insert
- * ItemStacks without NPE. Full port replaces with real multi-slot vat output inventory.
-*/
-    public final IItemHandler inventory = new ItemStackHandler(1);
+     * 9-slot inventory matching upstream 1.20.1's {@code SmartInventory(9, this)}. Holds both
+     * reactant items (powders the player drops in as catalysts — e.g., methanol synthesis
+     * needs two distinct dust catalysts) and precipitate output items spawned by
+     * {@link petrolpark.mc.destroy.chemistry.legacy.reactionresult.PrecipitateReactionResult}.
+     * Overriding {@link ItemStackHandler#onContentsChanged} to disturb equilibrium matches
+     * upstream's {@code whenContentsChanged(i -> cachedMixture.disturbEquilibrium())} so the
+     * next tick's reaction loop re-evaluates whether item-catalyzed reactions can now fire.
+     */
+    public final IItemHandler inventory = new ItemStackHandler(9) {
+        @Override
+        protected void onContentsChanged(int slot) {
+            super.onContentsChanged(slot);
+            if (cachedMixture != null) cachedMixture.disturbEquilibrium();
+            setChanged();
+        }
+    };
 
     /**
  * Pressure animation value (S179 stub addition). {@link LerpedFloat} initialized to 1.0f
