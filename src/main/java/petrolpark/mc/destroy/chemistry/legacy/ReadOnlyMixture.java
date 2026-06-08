@@ -32,11 +32,18 @@ import petrolpark.mc.destroy.client.DestroyLang;
 */
 public class ReadOnlyMixture {
 
-    /** A Decimal Formatter used for displaying the contents of Mixtures.*/
+    /**
+     * A Decimal Formatter used for displaying the contents of Mixtures. Three
+     * fraction digits so concentrations show meaningful precision (e.g.
+     * {@code 0.300 M} instead of {@code 0.3 M}). The {@code .quantity(...)}
+     * formatter in {@code DestroyLang} also reads {@code getMaximumFractionDigits()}
+     * to pick the unit-prefix cutoff, so this keeps the M / mM / μM threshold at
+     * 10⁻³ rather than 10⁻¹.
+     */
     private static DecimalFormat df = new DecimalFormat();
     static {
-        df.setMinimumFractionDigits(1);
-        df.setMaximumFractionDigits(1);
+        df.setMinimumFractionDigits(3);
+        df.setMaximumFractionDigits(3);
     }
 
     /** The minimum value below which a Molecule is considered an impurity.*/

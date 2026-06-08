@@ -136,6 +136,14 @@ dependencies {
     // JEI
     implementation("mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}")
 
+    // EMI — compileOnly because EMI is an alternate recipe viewer; users who run JEI
+    // shouldn't need EMI bundled. The DestroyEmiPlugin entry point's @EmiEntrypoint
+    // annotation is only consulted by EMI's class scanner at startup, so when EMI is
+    // absent the plugin class is never loaded. Using the local api-classifier jar
+    // because moddev's plugin-resolved variant fails to pick a jar artifact via
+    // terraformersmc maven (pom resolves but no classifier resolved).
+    compileOnly(files("../../../_Migration-Toolkit-1.21/lib-1.21/emi-neoforge-1.1.20+1.21.1-api.jar"))
+
     // Compat-module compile-only jars — runtime users load these as normal Minecraft mods
     // alongside Destroy; we only need the symbols at compile-time so the jars don't get bundled.
     compileOnly(files("../../../_Migration-Toolkit-1.21/lib-1.21/createbigcannons-5.11.3+mc.1.21.1.jar"))

@@ -172,23 +172,32 @@ public class DestroyVoxelShapes {
         return agingBarrel.build();
     }
 
+    /**
+     * Precomputed BubbleCap voxel shapes keyed by {@code (bottom ? 2 : 0) | (top ? 1 : 0)}.
+     * BubbleCapBlock#getShape is hit by collision / culling / lighting passes on every
+     * rendered frame — without this cache, each call rebuilt 5-6 boxes through
+     * AllShapes.Builder and produced a fresh combined VoxelShape, occupying a measurable
+     * fraction of render-thread time when many bubble caps were in view. Four combinations
+     * × one immutable shape each turns the lookup into a 2-bit index read.
+     */
+    private static final VoxelShape[] BUBBLE_CAP_SHAPES = new VoxelShape[4];
+    static {
+        for (int i = 0; i < 4; i++) {
+            boolean bottom = (i & 2) != 0;
+            boolean top = (i & 1) != 0;
+            Builder b = shape(2, 2, 2, 14, 14, 14)
+                .add(0, 0, 0, 2, 16, 2)
+                .add(0, 0, 14, 2, 16, 16)
+                .add(14, 0, 0, 16, 16, 2)
+                .add(14, 0, 14, 16, 16, 16);
+            if (bottom) b.add(0, 0, 0, 16, 2, 16); else b.add(3, 0, 3, 13, 2, 13);
+            if (top)    b.add(0, 14, 0, 16, 16, 16); else b.add(3, 14, 3, 13, 16, 13);
+            BUBBLE_CAP_SHAPES[i] = b.build();
+        }
+    }
+
     public static VoxelShape bubbleCap(boolean bottom, boolean top) {
-        Builder bubbleCap = shape(2, 2, 2, 14, 14, 14)
-            .add(0, 0, 0, 2, 16, 2)
-            .add(0, 0, 14, 2, 16, 16)
-            .add(14, 0, 0, 16, 16, 2)
-            .add(14, 0, 14, 16, 16, 16);
-        if (bottom) {
-            bubbleCap.add(0, 0, 0, 16, 2, 16);
-        } else {
-            bubbleCap.add(3, 0, 3, 13, 2, 13);
-        }
-        if (top) {
-            bubbleCap.add(0, 14, 0, 16, 16, 16);
-        } else {
-            bubbleCap.add(3, 14, 3, 13, 16, 13);
-        }
-        return bubbleCap.build();
+        return BUBBLE_CAP_SHAPES[(bottom ? 2 : 0) | (top ? 1 : 0)];
     }
 
     public static AllShapes.Builder shape(double x1, double y1, double z1, double x2, double y2, double z2) {

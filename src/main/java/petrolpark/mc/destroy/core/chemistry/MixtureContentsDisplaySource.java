@@ -29,10 +29,14 @@ import petrolpark.mc.destroy.client.DestroyLang.TemperatureUnit;
 */
 public abstract class MixtureContentsDisplaySource extends DisplaySource {
 
+    // Concentration formatter for display targets — 3 fraction digits to match the
+    // tooltip precision (see {@link ReadOnlyMixture#df}). Display-board readouts
+    // were 2 digits before; raising to 3 keeps the unit-prefix cutoff (M / mM / μM)
+    // consistent across both tooltip and display-source paths.
     private static DecimalFormat df = new DecimalFormat();
     static {
-        df.setMinimumFractionDigits(2);
-        df.setMaximumFractionDigits(2);
+        df.setMinimumFractionDigits(3);
+        df.setMaximumFractionDigits(3);
     }
 
     /**

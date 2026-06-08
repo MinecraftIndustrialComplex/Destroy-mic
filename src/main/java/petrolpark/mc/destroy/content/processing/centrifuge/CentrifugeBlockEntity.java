@@ -400,7 +400,16 @@ public class CentrifugeBlockEntity extends KineticBlockEntity implements IHaveLa
                             break findCounterions;
                         }
 
-                        float counterionMolesRequired = -moles * (float) counterion.getCharge() / (float) molecule.getCharge();
+                        // Charge balance: n_primary * c_primary + n_counter * c_counter = 0
+                        //   →  n_counter = - n_primary * c_primary / c_counter
+                        // i.e. counterionMolesRequired = -moles * molecule.charge / counterion.charge.
+                        // Upstream Destroy 1.20.1 wrote the two charges swapped (numerator =
+                        // counterion.charge, denominator = molecule.charge), which inverts the
+                        // pairing ratio every time the primary and counter-ion have different
+                        // charge magnitudes — centrifuging a 1:3 Fe³⁺/Cl⁻ mixture produced
+                        // output halves with Fe³⁺:Cl⁻ = 3:1. 1:1 salts (NaCl, KCl) accidentally
+                        // looked correct because the swap is a no-op when |c_primary|=|c_counter|.
+                        float counterionMolesRequired = -moles * (float) molecule.getCharge() / (float) counterion.getCharge();
                         float proportionAvailable = phasedMoleculesRemainingMoles.get(phasedCounterion) / counterionMolesRequired;
                         if (proportionAvailable <= 0f) break findCounterions;
 

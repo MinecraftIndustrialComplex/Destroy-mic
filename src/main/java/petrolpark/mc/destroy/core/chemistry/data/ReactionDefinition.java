@@ -38,7 +38,8 @@ public record ReactionDefinition(
     List<ItemReactantEntry> itemReactants,
     Optional<Boolean> requiresUv,
     Optional<KineticsEntry> kinetics,
-    Optional<ReactionResultDefinition> result
+    Optional<ReactionResultDefinition> result,
+    Optional<ReverseEntry> reverse
 ) {
 
     public static final Codec<ReactionDefinition> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -48,7 +49,8 @@ public record ReactionDefinition(
         Codec.list(ItemReactantEntry.CODEC).optionalFieldOf("item_reactants", List.of()).forGetter(ReactionDefinition::itemReactants),
         Codec.BOOL.optionalFieldOf("requires_uv").forGetter(ReactionDefinition::requiresUv),
         KineticsEntry.CODEC.optionalFieldOf("kinetics").forGetter(ReactionDefinition::kinetics),
-        ReactionResultDefinition.CODEC.optionalFieldOf("result").forGetter(ReactionDefinition::result)
+        ReactionResultDefinition.CODEC.optionalFieldOf("result").forGetter(ReactionDefinition::result),
+        ReverseEntry.CODEC.optionalFieldOf("reverse").forGetter(ReactionDefinition::reverse)
     ).apply(i, ReactionDefinition::new));
 
     /**
@@ -98,6 +100,29 @@ public record ReactionDefinition(
             ReactionResult.Factory factory = r.factory();
             if (factory != null) builder.withResult(r.moles(), factory);
         });
+
+        // Reverse reaction. {@link ReactionBuilder#reverseReaction} auto-derives the
+        // reverse's reactants/products/catalysts by swapping the forward's, and falls
+        // back to Hess's-Law-consistent activation energy + enthalpy if not specified.
+        // The lambda below only needs to apply the override kinetics + result the
+        // datapack author chose to set on the reverse half.
+        //
+        // <p>Note: builder.reverseReaction throws if the parent reaction was created
+        // via {@code generatedReactionBuilder()} — but datapack reactions always go
+        // through the standard {@code ReactionBuilder(namespace).id(path)} path, so
+        // this constraint never fires here. Hypothetical / R-group generic reactions
+        // remain Java-only by design (see class javadoc).</p>
+        reverse.ifPresent(rev -> builder.reverseReaction(rb -> {
+            rev.kinetics().ifPresent(k -> {
+                k.activationEnergy().ifPresent(rb::activationEnergy);
+                k.preexponentialFactor().ifPresent(rb::preexponentialFactor);
+                k.enthalpyChange().ifPresent(rb::enthalpyChange);
+            });
+            rev.result().ifPresent(r -> {
+                ReactionResult.Factory factory = r.factory();
+                if (factory != null) rb.withResult(r.moles(), factory);
+            });
+        }));
 
         LegacyReaction reaction = builder.build();
         reaction.markAsDatapack();
@@ -177,5 +202,32 @@ public record ReactionDefinition(
             Codec.FLOAT.optionalFieldOf("preexponential_factor").forGetter(KineticsEntry::preexponentialFactor),
             Codec.FLOAT.optionalFieldOf("enthalpy_change").forGetter(KineticsEntry::enthalpyChange)
         ).apply(i, KineticsEntry::new));
+    }
+
+    /**
+     * Reverse-reaction override entries. The reverse reaction's reactants / products /
+     * catalysts are <b>automatically derived</b> by {@code ReactionBuilder.reverseReaction}
+     * (forward reactants ↔ products; non-reactant orders become reverse catalysts), so
+     * datapack authors only need to specify what they want to override on the reverse half:
+     * <ul>
+     *   <li>{@code kinetics}: any subset of {@code activation_energy} /
+     *       {@code preexponential_factor} / {@code enthalpy_change}. Anything omitted
+     *       falls back to the Hess's-Law-consistent derivation from the forward
+     *       reaction (e.g. reverse enthalpy = −forward enthalpy when neither is fixed).</li>
+     *   <li>{@code result}: a separate {@link ReactionResultDefinition} the reverse
+     *       half produces (rare — typically only the forward direction precipitates).</li>
+     * </ul>
+     * The entry's presence alone (even with {@code {}}) is enough to mark the reaction
+     * reversible — empty body means "auto-derive everything", matching the Java-side
+     * {@code .reversible()} shortcut.
+     */
+    public record ReverseEntry(
+        Optional<KineticsEntry> kinetics,
+        Optional<ReactionResultDefinition> result
+    ) {
+        public static final Codec<ReverseEntry> CODEC = RecordCodecBuilder.create(i -> i.group(
+            KineticsEntry.CODEC.optionalFieldOf("kinetics").forGetter(ReverseEntry::kinetics),
+            ReactionResultDefinition.CODEC.optionalFieldOf("result").forGetter(ReverseEntry::result)
+        ).apply(i, ReverseEntry::new));
     }
 }

@@ -18,6 +18,7 @@ import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParam;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.level.storage.loot.providers.number.LootNumberProviderType;
+import net.minecraft.world.phys.Vec3;
 import petrolpark.mc.destroy.DestroyNumberProviderTypes;
 import petrolpark.mc.destroy.DestroyRegistries;
 
@@ -30,9 +31,20 @@ public record PollutionNumberProvider(Either<Holder<PollutionType<Level>>, Holde
 
     @Override
     public float getFloat(LootContext lootContext) {
+        // Chunk-pollution branch needs a spatial anchor (ORIGIN). Vanilla fishing loot
+        // sets do declare ORIGIN as required, but third-party mods can invoke a fishing
+        // loot table with a hand-built LootParams that omits it (Alex's Mobs'
+        // ShoebillAIFish.spawnFishingLoot is one such caller). Crashing the world tick
+        // with NoSuchElementException("minecraft:origin") is unacceptable — fall back to
+        // 0 (treat as no pollution) when ORIGIN is absent. Level-pollution branch is
+        // unaffected since it has no ORIGIN dependency.
         final int level = pollutionType().map(
             h -> PollutionHelper.getPollution(lootContext.getLevel(), h.value()),
-            h -> PollutionHelper.getPollution(lootContext.getLevel(), BlockPos.containing(lootContext.getParam(LootContextParams.ORIGIN)), h.value())
+            h -> {
+                Vec3 origin = lootContext.getParamOrNull(LootContextParams.ORIGIN);
+                if (origin == null) return 0;
+                return PollutionHelper.getPollution(lootContext.getLevel(), BlockPos.containing(origin), h.value());
+            }
         );
         return proportion() ? (float)level / (float)getMax() : level;
     };
