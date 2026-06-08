@@ -33,7 +33,14 @@ public class MeasuringCylinderBlockItem extends PlaceableMixtureTankItem<Measuri
     implements ISimpleMixtureTankRenderInformation<ItemStack> {
 
     public MeasuringCylinderBlockItem(MeasuringCylinderBlock block, Properties properties) {
-        super(block, properties);
+        // stacksTo(1): the cylinder holds variable fluid contents via DataComponents and
+        // stacking would silently merge differing fluids into one slot or wipe the
+        // FluidStack of all but the first item. Sibling {@code SimplePlaceableMixtureTankBlockItem}
+        // (BEAKER / FLASK / JAR / ROUND_BOTTOMED_FLASK) already applies stacksTo(1) here in
+        // its own constructor; upstream 1.20.1 instead set it via {@code .properties(p ->
+        // p.stacksTo(1))} on the {@code DestroyBlocks.MEASURING_CYLINDER} registrate chain,
+        // but the 1.21 port forgot that line, leaving cylinders stacking to 64.
+        super(block, properties.stacksTo(1));
     }
 
     /**

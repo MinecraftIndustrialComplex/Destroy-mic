@@ -65,7 +65,7 @@ public class BubbleCapBlockEntity extends SmartBlockEntity implements IHaveLabGo
 
     private int fraction; // Where in the Tower this Bubble Cap is (0 = base (controller), 1 = first fraction, etc)
     private int ticksToFill; // How long before this Bubble Cap should start transferring from its internal Tank to its actual Tank (allowing for the illusion of Fluid 'moving up' the Tower)
-    public FluidStack particleFluid; // Which Fluid to use if we have to make particles (S128+ wire)
+    public FluidStack particleFluid; // Which Fluid to use if we have to make particles
 
     private boolean isController;
     private BlockPos towerControllerPos;
@@ -91,7 +91,7 @@ public class BubbleCapBlockEntity extends SmartBlockEntity implements IHaveLabGo
     @Override
     public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
         tank = new GeniusFluidTankBehaviour(SmartFluidTankBehaviour.OUTPUT, this, 1, getTankCapacity(), true)
-            .whenFluidUpdates(this::notifyUpdate);
+            .whenFluidUpdates(() -> { recomputeCachedLuminosity(); notifyUpdate(); });
         internalTank = new GeniusFluidTankBehaviour(SmartFluidTankBehaviour.INPUT, this, 1, getTankCapacity(), true)
             .forbidExtraction()
             .forbidInsertion()
@@ -131,6 +131,12 @@ public class BubbleCapBlockEntity extends SmartBlockEntity implements IHaveLabGo
     @Override
     protected void read(CompoundTag compound, HolderLookup.Provider registries, boolean clientPacket) {
         super.read(compound, registries, clientPacket);
+        // super.read populates the tank via SmartBlockEntity's behaviour deserialization,
+        // but loaded-from-disk tank state doesn't fire the {@code whenFluidUpdates}
+        // callback (that's wired for runtime mutations). Refresh the luminosity cache
+        // explicitly so a freshly loaded tower with a luminous fluid lights its block
+        // immediately instead of staying dark until the first fluid mutation.
+        recomputeCachedLuminosity();
         if (!hasLevel()) return;
         fraction = compound.getInt("Fraction");
         int[] controllerPosArray = compound.getIntArray("DistillationTowerControllerPosition");
@@ -230,10 +236,30 @@ public class BubbleCapBlockEntity extends SmartBlockEntity implements IHaveLabGo
         return tank.getPrimaryTank();
     }
 
+    /**
+     * Cached fluid luminosity. {@link BubbleCapBlock#getLightEmission} is called by the
+     * lighting engine on every light update + chunk meshing pass; the previous
+     * "read tank → resolve fluid → fluid type → light level" chain consumed a non-trivial
+     * fraction of render-thread time when many bubble caps shared a chunk with a
+     * light-emitting fluid that re-propagates light through them every frame.
+     * Recomputing only on {@code whenFluidUpdates} (called by the tank when contents
+     * actually change) turns {@link #getLuminosity} into a single field read.
+     */
+    private int cachedLuminosity = 0;
+
     public int getLuminosity() {
-        if (getTank().isEmpty()) return 0;
+        return cachedLuminosity;
+    }
+
+    /** Recompute and cache. Called from {@link #addBehaviours}'s
+     * {@code tank.whenFluidUpdates} hook so the cache stays in sync with the tank. */
+    private void recomputeCachedLuminosity() {
+        if (tank == null || getTank().isEmpty()) {
+            cachedLuminosity = 0;
+            return;
+        }
         FluidStack fluidStack = getTank().getFluid();
-        return fluidStack.getFluid().getFluidType().getLightLevel(fluidStack);
+        cachedLuminosity = fluidStack.getFluid().getFluidType().getLightLevel(fluidStack);
     }
 
     // ═════════════════════════════════════════════════════════════════════════════════════════

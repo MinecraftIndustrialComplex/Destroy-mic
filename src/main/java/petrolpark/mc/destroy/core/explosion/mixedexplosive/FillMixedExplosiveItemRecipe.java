@@ -35,7 +35,7 @@ public class FillMixedExplosiveItemRecipe extends CustomRecipe {
  * new recipe instance.
 */
     public static final DeferredHolder<RecipeSerializer<?>, SimpleCraftingRecipeSerializer<FillMixedExplosiveItemRecipe>> SERIALIZER =
-        DestroyRecipeTypes.Registers.SERIALIZERS.register("fill_mixed_explosive_item",
+        DestroyRecipeTypes.Registers.SERIALIZERS.register("fill_custom_explosive_mix_item",
             () -> new SimpleCraftingRecipeSerializer<>(FillMixedExplosiveItemRecipe::new));
 
     public FillMixedExplosiveItemRecipe(CraftingBookCategory category) {

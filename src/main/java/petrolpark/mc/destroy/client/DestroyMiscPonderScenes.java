@@ -1,71 +1,182 @@
 package petrolpark.mc.destroy.client;
 
+import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllItems;
+import com.simibubi.create.content.fluids.pipes.FluidPipeBlock;
+import com.simibubi.create.content.redstone.link.RedstoneLinkBlock;
+import com.simibubi.create.foundation.ponder.CreateSceneBuilder;
 
+import net.createmod.catnip.math.Pointing;
 import net.createmod.ponder.api.PonderPalette;
 import net.createmod.ponder.api.element.ElementLink;
+import net.createmod.ponder.api.element.EntityElement;
 import net.createmod.ponder.api.element.WorldSectionElement;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
+import net.createmod.ponder.api.scene.Selection;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-import com.simibubi.create.content.redstone.link.RedstoneLinkBlock;
-
 import petrolpark.mc.destroy.DestroyBlocks;
+import petrolpark.mc.destroy.DestroyItems;
+import petrolpark.mc.destroy.core.chemistry.vat.VatSideBlockEntity;
+import petrolpark.mc.destroy.core.chemistry.vat.VatSideBlockEntity.DisplayType;
 
 /**
- * Deps: BlacklightBlock (S186 ported) but the scene itself only uses generic
- * showSection / showOutline / showText — no cross-file coupling.</li>
- * <li>{@link #redstoneProgrammer} — <b>real</b>, wired on {@link DestroyBlocks#REDSTONE_PROGRAMMER}
- * in {@link DestroyPonderScenes#register}. Deps:
- * basic Ponder API only (basin + burner show-sections + text overlay). <b>Note:</b> scene
- * title "reactions" matches existing {@code ChemistryPonderScenes::reactions} on BASIN —
- * two separate storyboards sharing a title, Ponder distinguishes by registered component.</li>
- * <li>{@link #vatInteraction} — <b>stub</b>, T2a defer. Depends on full Vat subsystem
- * ({@link petrolpark.mc.destroy.core.chemistry.vat.VatSideBlockEntity#setDisplayType} +
- * {@code DisplayType.THERMOMETER/BAROMETER/PIPE/OPEN_VENT/CLOSED_VENT}). Vat stub is
- * partial (S178), but the interaction scene requires the full DisplayType enum-driven
- * side-block state machine, which needs VatSideBlockEntity full port + VatRenderer +
- * VatScreen to render meaningfully. Stub preserves registration API contract for
- * future T2a-closer.</li>
- * </ul>
+ * Miscellaneous Ponder scenes for Destroy.
  *
- * <p><b>Registration site</b> (DestroyPonderScenes.register):</p>
+ * <p><b>Registration site</b> ({@link DestroyPonderScenes#register}):</p>
  * <ul>
- * <li>{@code uv} — NOT registered.</li>
- * <li>{@code redstoneProgrammer} — REDSTONE_PROGRAMMER block</li>
- * <li>{@code reactions} — MECHANICAL_MIXER block (with DestroyPonderTags.CHEMISTRY)</li>
- * <li>{@code vatInteraction} — BLAZE_BURNER block (deferred; stub behavior: scene.markAsFinished)</li>
+ *   <li>{@link #vatInteraction} — BLAZE_BURNER block, tag CHEMISTRY</li>
+ *   <li>{@link #reactions} — MECHANICAL_MIXER block, tag CHEMISTRY</li>
+ *   <li>{@link #redstoneProgrammer} — REDSTONE_PROGRAMMER block</li>
+ *   <li>{@link #uv} — NOT registered (kept for completeness; lit by BlacklightBlock externally)</li>
  * </ul>
- *
- * <p><b>Rule applications</b> (zero new rule — pure pattern reuse):</p>
-*/
+ */
 public class DestroyMiscPonderScenes {
 
     /**
- * Vat interaction scene — <b>T2a STUB</b>. Plus fluid pipe placement + funnel
- * interaction + platinum ingot item drop + blaze burner/cooler substitution.
- *
- * <p>Blockers for real port:</p>
- * <ul>
- * <li>{@code VatSideBlockEntity.setDisplayType(DisplayType)} is stub (S178) — would need
- * full state-machine impl + rendering wire.</li>
- * <li>VatControllerBlockEntity stubs (S176/S179/S189 addFluid/flush/pressure) would not
- * visualize meaningfully in Ponder even if scene lambda compiled.</li>
- * <li>VatRenderer + VatSideRenderer absent (S200 roadmap T2a §1.11).</li>
- * </ul>
-*/
+     * Vat interaction scene — guides the player through the wrench DisplayType cycle
+     * (thermometer / barometer / pipe / vent), pipe extraction, item-funnel input, the
+     * redstone-controlled top vent, and heating / cooling via Blaze Burners or Refrigerstrayters.
+     * Schematic: {@code assets/destroy/ponder/vat/interaction.nbt}.
+     */
     public static void vatInteraction(SceneBuilder builder, SceneBuildingUtil util) {
-        // S201 stub — see class javadoc for T2a blocker list. Minimal scene: title + finished
-        // marker so the storyboard registration is non-null and UI doesn't error-out.
-        builder.title("vat_interaction", "This text is defined in a language file.");
-        builder.configureBasePlate(0, 0, 6);
-        builder.scaleSceneView(0.8f);
-        builder.showBasePlate();
-        builder.idle(10);
-        builder.markAsFinished();
+        CreateSceneBuilder scene = new CreateSceneBuilder(builder);
+        scene.title("vat_interaction", "This text is defined in a language file.");
+        scene.configureBasePlate(0, 0, 6);
+        scene.scaleSceneView(0.8f);
+        scene.showBasePlate();
+
+        Selection vat = util.select().fromTo(1, 1, 1, 4, 4, 4);
+        BlockPos dialBlock = util.grid().at(3, 3, 1);
+        BlockPos pipeBlock = util.grid().at(1, 2, 3);
+        BlockPos pipe = util.grid().at(0, 2, 3);
+        BlockState pipeState = AllBlocks.FLUID_PIPE.getDefaultState()
+            .setValue(FluidPipeBlock.DOWN, false)
+            .setValue(FluidPipeBlock.UP, false)
+            .setValue(FluidPipeBlock.NORTH, false)
+            .setValue(FluidPipeBlock.SOUTH, false)
+            .setValue(FluidPipeBlock.EAST, true)
+            .setValue(FluidPipeBlock.WEST, true);
+        BlockPos bottomFunnel = util.grid().at(0, 2, 2);
+        BlockPos vent = util.grid().at(3, 4, 2);
+        BlockPos lever = util.grid().at(3, 4, 0);
+        Selection everything = util.select().fromTo(0, 1, 0, 4, 5, 4);
+
+        scene.idle(10);
+        scene.world().showSection(util.select().fromTo(1, 1, 1, 4, 4, 4), Direction.DOWN);
+        scene.idle(10);
+        scene.overlay().showText(80)
+            .text("This text is defined in a language file.")
+            .attachKeyFrame();
+        scene.idle(20);
+        scene.overlay().showControls(util.vector().blockSurface(dialBlock, Direction.NORTH), Pointing.RIGHT, 20)
+            .withItem(AllItems.WRENCH.asStack());
+        scene.idle(5);
+        scene.world().modifyBlockEntity(dialBlock, VatSideBlockEntity.class, vatSide -> vatSide.setDisplayType(DisplayType.THERMOMETER));
+        scene.idle(75);
+
+        scene.overlay().showText(60)
+            .text("This text is defined in a language file.")
+            .colored(PonderPalette.RED)
+            .attachKeyFrame();
+        Selection edges = vat.substract(util.select().fromTo(2, 2, 1, 3, 3, 4))
+            .substract(util.select().fromTo(2, 1, 2, 3, 4, 3))
+            .substract(util.select().fromTo(1, 2, 2, 4, 3, 3));
+        scene.overlay().showOutline(PonderPalette.RED, "vat_outside", edges, 60);
+        scene.idle(80);
+
+        scene.overlay().showText(80)
+            .text("This text is defined in a language file.")
+            .attachKeyFrame();
+        scene.idle(20);
+        scene.overlay().showControls(util.vector().blockSurface(dialBlock, Direction.NORTH), Pointing.RIGHT, 20)
+            .withItem(AllItems.WRENCH.asStack());
+        scene.idle(5);
+        scene.world().modifyBlockEntity(dialBlock, VatSideBlockEntity.class, vatSide -> vatSide.setDisplayType(DisplayType.BAROMETER));
+        scene.idle(75);
+
+        scene.overlay().showText(80)
+            .text("This text is defined in a language file.")
+            .attachKeyFrame();
+        scene.idle(20);
+        scene.world().setBlock(pipe, pipeState, false);
+        scene.world().showSection(util.select().position(pipe), Direction.EAST);
+        scene.idle(12);
+        scene.world().modifyBlockEntity(pipeBlock, VatSideBlockEntity.class, vatSide -> vatSide.setDisplayType(DisplayType.PIPE));
+        scene.idle(68);
+
+        scene.overlay().showText(100)
+            .text("This text is defined in a language file.")
+            .colored(PonderPalette.RED)
+            .pointAt(util.vector().blockSurface(pipeBlock, Direction.WEST));
+        scene.idle(120);
+
+        scene.overlay().showText(100)
+            .text("This text is defined in a language file.")
+            .attachKeyFrame();
+        scene.idle(10);
+        scene.world().showSection(util.select().position(2, 5, 3), Direction.DOWN);
+        scene.idle(20);
+        ElementLink<EntityElement> itemEntity = scene.world().createItemEntity(
+            util.vector().centerOf(util.grid().at(2, 9, 3)),
+            util.vector().of(0f, -0.4f, 0f),
+            DestroyItems.PLATINUM_INGOT.asStack());
+        scene.idle(8);
+        scene.world().modifyEntity(itemEntity, Entity::discard);
+        scene.idle(22);
+        scene.world().showSection(util.select().position(bottomFunnel), Direction.EAST);
+        scene.idle(20);
+        scene.world().flapFunnel(bottomFunnel, true);
+        scene.world().createItemEntity(
+            util.vector().centerOf(bottomFunnel).add(0.15f, -0.45f, 0),
+            Vec3.ZERO,
+            DestroyItems.PLATINUM_INGOT.asStack());
+        scene.idle(40);
+
+        scene.overlay().showText(100)
+            .text("This text is defined in a language file.")
+            .attachKeyFrame();
+        scene.idle(20);
+        scene.overlay().showControls(util.vector().blockSurface(vent, Direction.UP), Pointing.DOWN, 20)
+            .withItem(AllItems.WRENCH.asStack());
+        scene.idle(5);
+        scene.world().modifyBlockEntity(vent, VatSideBlockEntity.class, vatSide -> vatSide.setDisplayType(DisplayType.OPEN_VENT));
+        scene.idle(95);
+
+        scene.overlay().showText(80)
+            .text("This text is defined in a language file.");
+        scene.idle(10);
+        scene.world().showSection(util.select().position(lever), Direction.SOUTH);
+        scene.idle(20);
+        scene.world().toggleRedstonePower(util.select().position(lever));
+        scene.effects().indicateRedstone(lever);
+        scene.world().modifyBlockEntity(vent, VatSideBlockEntity.class, vatSide -> vatSide.setDisplayType(DisplayType.CLOSED_VENT));
+        scene.idle(50);
+
+        ElementLink<WorldSectionElement> everythingLink = scene.world().makeSectionIndependent(everything);
+        scene.world().moveSection(everythingLink, util.vector().of(0, 3, 0), 10);
+        scene.idle(20);
+        scene.overlay().showText(100)
+            .text("This text is defined in a language file.")
+            .attachKeyFrame();
+        scene.idle(10);
+        ElementLink<WorldSectionElement> blazeBurners = scene.world().showIndependentSection(util.select().fromTo(5, 1, 2, 6, 1, 3), Direction.WEST);
+        scene.world().moveSection(blazeBurners, util.vector().of(-3, 0, 0), 0);
+        scene.idle(20);
+        scene.world().hideIndependentSection(blazeBurners, Direction.WEST);
+        scene.idle(20);
+        ElementLink<WorldSectionElement> coolers = scene.world().showIndependentSection(util.select().fromTo(7, 1, 2, 8, 1, 3), Direction.WEST);
+        scene.world().moveSection(coolers, util.vector().of(-5, 0, 0), 0);
+        scene.idle(20);
+        scene.world().moveSection(everythingLink, util.vector().of(0, -2, 0), 10);
+        scene.idle(40);
+
+        scene.markAsFinished();
     }
 
     /**

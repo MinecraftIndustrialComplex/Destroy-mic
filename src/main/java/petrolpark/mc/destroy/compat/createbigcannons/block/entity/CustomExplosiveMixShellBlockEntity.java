@@ -105,9 +105,17 @@ public class CustomExplosiveMixShellBlockEntity extends FuzedBlockEntity impleme
         return customName != null ? customName : getBlockState().getBlock().getName();
     }
 
-    public ItemStack getFuze() {
-        return getItem(0);
-    }
+    // Note: this BE intentionally does NOT override {@code getFuze()}. CBC's
+    // {@link FuzedBlockEntity} stores the fuze in the {@code CBCDataComponents.FUZE}
+    // data component (not in a numbered inventory slot), and slot 0 in this BE's
+    // hierarchy is the explosive-mix inventory's first slot — not the fuze slot. An
+    // earlier {@code getFuze() { return getItem(0); }} override caused the install to
+    // appear to fail: right-clicking with a fuze item DID consume the item (CBC's
+    // useItemOn → setItem(1, fuze) → setFuze → component write all succeeded), but
+    // every downstream call (getDrops, getProjectile.setFuze, the rendered fuze model)
+    // read the wrong slot back as empty so the fuze appeared to vanish. Inheriting
+    // CBC's {@code FuzedBlockEntity.getFuze} makes the install/drop/render chain read
+    // from the same component CBC writes to.
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {

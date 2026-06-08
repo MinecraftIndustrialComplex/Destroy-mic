@@ -126,29 +126,8 @@ public class BlowpipeItem extends BlockItem implements CustomArmPoseItem {
             Direction face = context.getClickedFace();
             FluidStack blowpipeFluid = stack.getOrDefault(DestroyDataComponents.BLOWPIPE_TANK, FluidStack.EMPTY);
             if (blowpipeFluid.isEmpty()) {
-                // 1.21 capability lookup: level-side, nullable return.
-                IFluidHandler fh = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, face);
-                if (fh != null) {
-                    // split the simulate/execute pair from a for-loop into explicit
-                    // sequential calls, and DEFENSIVE-COPY the executed result before storing
-                    // into the TANK DataComponent. Some IFluidHandler implementations (Create
-                    // basin / vanilla potion cauldron) cache the FluidStack instance they
-                    // return, and subsequent operations on the same handler can MUTATE that
-                    // instance back to empty. Without .copy(), our TANK component would
-                    // observe its FluidStack getting silently zeroed-out, making the next
-                    // useOn click see an empty tank and re-drain. Symptom: every right-click
-                    // drains fluid from the basin but the blowpipe never appears loaded.
-                    FluidStack simulated = fh.drain(ingredient.amount(), IFluidHandler.FluidAction.SIMULATE);
-                    if (!ingredient.ingredient().test(simulated) || simulated.getAmount() < ingredient.amount()) {
-                        return InteractionResult.FAIL;
-                    }
-                    FluidStack drained = fh.drain(ingredient.amount(), IFluidHandler.FluidAction.EXECUTE);
-                    if (drained.isEmpty() || drained.getAmount() < ingredient.amount()) {
-                        return InteractionResult.FAIL;
-                    }
-                    stack.set(DestroyDataComponents.BLOWPIPE_TANK, drained.copy());
-                    return InteractionResult.SUCCESS;
-                }
+                InteractionResult drainResult = tryDrainFromBlock(level, pos, face, stack, ingredient);
+                if (drainResult != InteractionResult.PASS) return drainResult;
             } else {
                 // tank already full: don't fall through to BlockItem.place which would
                 // consume the click for placement (returning FAIL when target spot is occupied,
@@ -165,6 +144,45 @@ public class BlowpipeItem extends BlockItem implements CustomArmPoseItem {
             if (BlowpipeBlock.getDeployerPlacer(level, deployer) == null) return InteractionResult.FAIL;
         }
         return super.useOn(context);
+    }
+
+    /**
+     * Drain {@code ingredient.amount()} mB of the required fluid from the IFluidHandler at
+     * {@code (pos, face)} into this blowpipe's TANK DataComponent. Shared between
+     * {@link #useOn} (right-click placement path) and the left-click event handler in
+     * {@code DestroyCommonEvents.onPlayerLeftClickBlock} — Destroy's other fluid-storage
+     * items (test tube, beaker, measuring cylinder) all extract on LEFT-click via
+     * {@code IMixtureStorageItem.defaultAttack}; the blowpipe didn't follow that convention
+     * upstream, leaving players unable to suck molten borosilicate glass out of a Create
+     * basin or vat output via the same gesture they use for every other glassware.
+     *
+     * @return {@link InteractionResult#SUCCESS} on drain, {@link InteractionResult#FAIL} on
+     *         capability mismatch / insufficient fluid, {@link InteractionResult#PASS} when
+     *         no IFluidHandler is attached at the clicked face (so the caller can fall
+     *         through to other logic).
+     */
+    public InteractionResult tryDrainFromBlock(Level level, BlockPos pos, Direction face,
+                                               ItemStack stack, SizedFluidIngredient ingredient) {
+        // 1.21 capability lookup: level-side, nullable return.
+        IFluidHandler fh = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, face);
+        if (fh == null) return InteractionResult.PASS;
+        // split the simulate/execute pair from a for-loop into explicit sequential calls,
+        // and DEFENSIVE-COPY the executed result before storing into the TANK
+        // DataComponent. Some IFluidHandler implementations (Create basin / vanilla potion
+        // cauldron) cache the FluidStack instance they return, and subsequent operations
+        // on the same handler can MUTATE that instance back to empty. Without .copy(), our
+        // TANK component would observe its FluidStack getting silently zeroed-out, making
+        // the next click see an empty tank and re-drain.
+        FluidStack simulated = fh.drain(ingredient.amount(), IFluidHandler.FluidAction.SIMULATE);
+        if (!ingredient.ingredient().test(simulated) || simulated.getAmount() < ingredient.amount()) {
+            return InteractionResult.FAIL;
+        }
+        FluidStack drained = fh.drain(ingredient.amount(), IFluidHandler.FluidAction.EXECUTE);
+        if (drained.isEmpty() || drained.getAmount() < ingredient.amount()) {
+            return InteractionResult.FAIL;
+        }
+        stack.set(DestroyDataComponents.BLOWPIPE_TANK, drained.copy());
+        return InteractionResult.SUCCESS;
     }
 
     /**

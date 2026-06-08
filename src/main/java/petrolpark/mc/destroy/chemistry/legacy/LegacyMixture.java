@@ -126,7 +126,27 @@ public class LegacyMixture extends ReadOnlyMixture {
         ListTag contents = compound.getList("Contents", Tag.TAG_COMPOUND);
         contents.forEach(tag -> {
             CompoundTag moleculeTag = (CompoundTag) tag;
-            LegacySpecies molecule = LegacySpecies.getMolecule(moleculeTag.getString("Molecule"));
+            String moleculeId = moleculeTag.getString("Molecule");
+            LegacySpecies molecule = LegacySpecies.getMolecule(moleculeId);
+            if (molecule == null) {
+                // Datapack / addon-mod recipe references a molecule id the current chemistry
+                // registry doesn't know about — typical when an addon datapack is uninstalled
+                // partway, when NBT is carried over from an older save where the molecule was
+                // removed, or when reload-listener order puts a datapack molecule registration
+                // after Minecraft's {@code RecipeManager.apply} (which constructs every
+                // {@link com.simibubi.create.content.processing.recipe.ProcessingRecipe} and
+                // synchronously walks its fluid components through this codepath via the
+                // mixin-injected {@code captureMixtureMolecules}).
+                //
+                // Without this guard, {@link #internalAddMolecule} dereferences {@code null}
+                // on {@code molecule.isNovel()} and throws NPE, which bubbles up through Codec
+                // decoding past every {@code DataResult$Success.map} call site (those don't
+                // catch RuntimeException) and aborts the entire datapack reload — the world
+                // never finishes loading. Skipping the unknown entry with a single WARN per
+                // call leaves the rest of the mixture intact and lets the reload finish.
+                Destroy.LOGGER.warn("Unknown molecule id '{}' in mixture NBT — skipped (datapack / addon may have changed since this NBT was written).", moleculeId);
+                return;
+            }
             mixture.internalAddMolecule(molecule, moleculeTag.getFloat("Concentration"), false);
             if (moleculeTag.contains("Gaseous", Tag.TAG_FLOAT)) {
                 float state = moleculeTag.getFloat("Gaseous");

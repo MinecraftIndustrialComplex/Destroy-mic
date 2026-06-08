@@ -52,8 +52,10 @@ public class DestroyAdvancementTrigger {
     public static final Stub COMPLETE_SEISMOGRAPH = new Stub("complete_seismograph");
     public static final Stub USE_SEISMOMETER      = new Stub("use_seismometer");
 
-    // Keypunch subdir ice-breaker triggers.
-    public static final Stub USE_KEYPUNCH         = new Stub("use_keypunch");
+    // Keypunch subdir ice-breaker triggers. Trigger id matches upstream "keypunch" so the
+    // existing keypunch.json advancement file picks it up (was registered as "use_keypunch"
+    // pre-v0.3.1, causing the advancement to never fire).
+    public static final Stub USE_KEYPUNCH         = new Stub("keypunch");
     public static final Stub KEYPUNCH_FIVE        = new Stub("keypunch_five");
 
     // Centrifuge BE awards USE_CENTRIFUGE on every successful centrifugation recipe.
@@ -97,6 +99,16 @@ public class DestroyAdvancementTrigger {
 
     // Chemistry-batch trigger handles (Sessions 56 + 57) — referenced by generic reactions + the
     // DestroyReactions data file.
+    // Stubs added v0.3.1 to plug the trigger ↔ advancement registry gap inherited from the
+    // initial port. Each Stub is wired below: SHOOT_HEFTY_BEETROOT + FIREPROOF_FLINT_AND_STEEL
+    // in DestroyCommonEvents, CUT_ONIONS in the FD CuttingBoardMixin, HABER_PROCESS +
+    // STEAM_REFORMATION in DestroyReactions reaction definitions.
+    public static final Stub SHOOT_HEFTY_BEETROOT     = new Stub("beetroot_potato_cannon");
+    public static final Stub CUT_ONIONS               = new Stub("cut_onions");
+    public static final Stub FIREPROOF_FLINT_AND_STEEL = new Stub("fireproof_flint_and_steel");
+    public static final Stub HABER_PROCESS            = new Stub("haber_process");
+    public static final Stub STEAM_REFORMATION        = new Stub("steam_reformation");
+
     public static final Stub ACETONE            = new Stub("acetone");
     public static final Stub PROPANOL           = new Stub("propanol");
     public static final Stub ADDITION_POLYMER   = new Stub("addition_polymer");

@@ -14,6 +14,7 @@ import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import petrolpark.mc.destroy.core.data.advancement.DestroyAdvancementBehaviour;
 import petrolpark.mc.destroy.core.pollution.PollutingBehaviour;
 
 /**
@@ -38,5 +39,11 @@ public abstract class BasinBlockEntityAddBehavioursMixin extends SmartBlockEntit
     )
     public void destroy$addPollutingBehaviour(List<BlockEntityBehaviour> behaviours, CallbackInfo ci) {
         behaviours.add(new PollutingBehaviour(this));
+        // Tracks the placer so DestroyAdvancementReactionResult can award chemistry
+        // achievements (acetone, propanol, polymers, Andrussow, ostwald, …) when reactions
+        // happen inside this basin. Has to be attached during addBehaviours rather than as a
+        // deferred behaviour — otherwise the placer-record event has already fired by the time
+        // it gets registered.
+        behaviours.add(new DestroyAdvancementBehaviour(this));
     };
 };

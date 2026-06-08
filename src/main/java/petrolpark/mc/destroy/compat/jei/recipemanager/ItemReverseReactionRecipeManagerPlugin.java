@@ -13,7 +13,9 @@ import mezz.jei.api.recipe.advanced.IRecipeManagerPlugin;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeHolder;
 
+import petrolpark.mc.destroy.Destroy;
 import petrolpark.mc.destroy.chemistry.legacy.LegacyReaction;
 import petrolpark.mc.destroy.compat.jei.category.GenericReactionCategory;
 import petrolpark.mc.destroy.compat.jei.category.ReactionCategory;
@@ -43,37 +45,64 @@ public class ItemReverseReactionRecipeManagerPlugin implements IRecipeManagerPlu
             .map(ITypedIngredient::getIngredient)
             .ifPresent(stack -> {
                 Stream<? extends ReactionRecipe> recipesToCheck;
+                String holderIdPrefix;
                 if (recipeCategory instanceof GenericReactionCategory) {
                     recipesToCheck = GenericReactionCategory.RECIPES.values().stream();
+                    holderIdPrefix = "reverse_generic_reaction_";
                 } else if (recipeCategory instanceof ReactionCategory) {
                     recipesToCheck = ReactionCategory.RECIPES.values().stream();
+                    holderIdPrefix = "reverse_reaction_";
                 } else {
                     return;
                 }
+                int[] counter = { 0 };
                 recipesToCheck.filter(recipe -> {
                     LegacyReaction reaction = recipe.getReaction();
-                    boolean searchCatalysts = focus.getRole() == RecipeIngredientRole.CATALYST;
-                    boolean searchInputs = searchCatalysts
-                        || focus.getRole() == RecipeIngredientRole.INPUT
-                        || (focus.getRole() == RecipeIngredientRole.OUTPUT && reaction.displayAsReversible());
-                    boolean searchOutputs = searchCatalysts
-                        || focus.getRole() == RecipeIngredientRole.OUTPUT
-                        || (focus.getRole() == RecipeIngredientRole.INPUT && reaction.displayAsReversible());
+                    RecipeIngredientRole role = focus.getRole();
 
-                    // Reactants and catalysts
-                    if (reaction.getItemReactants().stream().anyMatch(ir ->
-                        ((ir.isCatalyst() && searchCatalysts) || (!ir.isCatalyst() && searchInputs))
-                            && ir.isItemValid(stack))) return true;
+                    // Plugin scope: SUPPLEMENT JEI's static lookup, never duplicate it. JEI's
+                    // own per-slot ingredient matcher already finds every reaction where the
+                    // focus item appears in a rendered slot of the recipe layout
+                    // (item-reactant INPUT, precipitate OUTPUT, item-catalyst CATALYST). The
+                    // gap is reversible reactions: their two sides are interchangeable in the
+                    // physical sense, but JEI's slot matcher only sees the one direction the
+                    // recipe layout was authored in. For reversible reactions the plugin
+                    // surfaces the "other-side" hits that the static path would miss:
+                    //   * focus OUTPUT + reversible → match item-reactants (INPUT side)
+                    //   * focus INPUT  + reversible → match precipitates (OUTPUT side)
+                    // For irreversible reactions, the static path already does the job — any
+                    // match here would just be a duplicate of what JEI is already rendering
+                    // (was the original bug: item precipitates of irreversible reactions
+                    // showed twice in U/R-key lookups). For CATALYST focus the static path
+                    // also handles item catalysts natively.
+                    if (!reaction.displayAsReversible()) return false;
 
-                    // line `if (searchOutputs && reaction.hasResult()) reaction.getResult()...anyMatch(...)`
-                    // was an unbound expression statement. Preserved 1:1; behavior matches upstream.)
-                    if (searchOutputs && reaction.hasResult()) {
-                        reaction.getResult().getAllPrecipitates().stream()
-                            .anyMatch(p -> ItemStack.matches(p.getPrecipitate(), stack));
+                    if (role == RecipeIngredientRole.OUTPUT) {
+                        // User asked "what makes X" — surface reactions where X is a
+                        // non-catalyst item reactant of a reversible reaction (the reverse
+                        // direction would produce X).
+                        return reaction.getItemReactants().stream()
+                            .anyMatch(ir -> !ir.isCatalyst() && ir.isItemValid(stack));
                     }
-
+                    if (role == RecipeIngredientRole.INPUT) {
+                        // User asked "what uses X" — surface reactions where X is a
+                        // precipitate output of a reversible reaction (the reverse direction
+                        // would consume X).
+                        return reaction.hasResult()
+                            && reaction.getResult().getAllPrecipitates().stream()
+                                .anyMatch(p -> ItemStack.matches(p.getPrecipitate(), stack));
+                    }
                     return false;
-                }).map(r -> (T) r).forEach(recipes::add);
+                }).forEach(r -> {
+                    // Wrap each ReactionRecipe in a synthetic RecipeHolder — Create's
+                    // CreateRecipeCategory<R> implements IRecipeCategory<RecipeHolder<R>>, so
+                    // JEI's setRecipe(Object) bridge does `checkcast RecipeHolder` on every
+                    // recipe the plugin returns. A bare ReactionRecipe here crashes the layout
+                    // build with the in-game "该配方已崩溃 / destroy:reaction" overlay because
+                    // the cast fails. Holder id only needs to be unique within this list.
+                    recipes.add((T) new RecipeHolder<>(
+                        Destroy.asResource(holderIdPrefix + counter[0]++), r));
+                });
             });
         return recipes;
     }

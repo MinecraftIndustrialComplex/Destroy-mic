@@ -21,8 +21,11 @@
         "compat.create.FluidTransportBehaviourMixin",
         "compat.create.FluidTankBlockEntityMixin",
         "compat.create.FluidTankMountedStorageHandlerMixin",
+        "compat.create.GenericItemFillingMixin",
+        "compat.ponder.StitchedSpriteMixin",
         "compat.create_connected.FluidVesselBlockEntityMixin",
-        "compat.create_connected.FluidVesselMountedStorageHandlerMixin"
+        "compat.create_connected.FluidVesselMountedStorageHandlerMixin",
+        "compat.farmersdelight.CuttingBoardBlockEntityMixin"
     ],
     "client": [
         "client.CreativeModeInventoryScreenMixin",

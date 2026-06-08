@@ -50,15 +50,32 @@ public interface IMixtureStorageItem {
 
     // ---- fill/empty interactions ----
 
-    /** Try filling the item from an external fluid handler.*/
+    /**
+     * Try filling the item from an external fluid handler. Determines the actual transfer
+     * amount by simulating both ends first, then executes both ends with exactly that
+     * amount — preventing source-side over-drain when the destination's free capacity is
+     * smaller than {@code maxTransfer}.
+     *
+     * <p>The previous two-pass {@code simulate/execute} loop drained {@code maxTransfer}
+     * verbatim on the execute pass; if the destination only had room for less than
+     * {@code maxTransfer}, the destination's {@code fill} returned the smaller amount and
+     * the difference was lost (the {@code drained} FluidStack went out of scope).
+     * Reported as the symmetric pour-out bug ("flask 500mB into 200mB-free container =
+     * flask empties, 300mB destroyed").</p>
+     */
     default InteractionResult tryFill(ItemStack stack, IFluidHandlerItem itemTank, @Nullable IFluidHandler otherTank, int maxTransfer) {
         if (otherTank == null) return InteractionResult.PASS;
-        for (boolean simulate : Iterate.trueAndFalse) {
-            FluidStack drained = otherTank.drain(maxTransfer, simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);
-            if (drained.isEmpty()) return InteractionResult.FAIL;
-            int filled = itemTank.fill(drained, simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);
-            if (filled == 0) return InteractionResult.FAIL;
-        }
+        // Phase 1: simulate to find the largest transfer amount both ends accept.
+        FluidStack simulatedDrain = otherTank.drain(maxTransfer, FluidAction.SIMULATE);
+        if (simulatedDrain.isEmpty()) return InteractionResult.FAIL;
+        int simulatedFill = itemTank.fill(simulatedDrain, FluidAction.SIMULATE);
+        if (simulatedFill == 0) return InteractionResult.FAIL;
+        int actualTransfer = Math.min(simulatedDrain.getAmount(), simulatedFill);
+        if (actualTransfer <= 0) return InteractionResult.FAIL;
+        // Phase 2: execute with that exact amount on both ends.
+        FluidStack actualDrain = otherTank.drain(actualTransfer, FluidAction.EXECUTE);
+        if (actualDrain.isEmpty()) return InteractionResult.FAIL;
+        itemTank.fill(actualDrain, FluidAction.EXECUTE);
         return InteractionResult.SUCCESS;
     }
 
@@ -68,15 +85,33 @@ public interface IMixtureStorageItem {
         return tryFill(stack, itemTank, otherTank, Math.max(space, 1));
     }
 
-    /** Try emptying the item into an external fluid handler.*/
+    /**
+     * Try emptying the item into an external fluid handler. Symmetric counterpart of
+     * {@link #tryFill} — see that method's javadoc for the over-drain failure mode and
+     * the two-phase fix.
+     *
+     * <p>The {@code infiniteFluid} flag (creative-mode flask) means "don't actually
+     * remove fluid from the source", but the executed fill is still the genuine
+     * destination side; the simulate-then-execute split still applies.</p>
+     */
     default InteractionResult tryEmpty(ItemStack stack, IFluidHandlerItem itemTank, @Nullable IFluidHandler otherTank, boolean infiniteFluid, int maxTransfer) {
         if (otherTank == null) return InteractionResult.PASS;
-        for (boolean simulate : Iterate.trueAndFalse) {
-            FluidStack drained = itemTank.drain(maxTransfer, simulate || infiniteFluid ? FluidAction.SIMULATE : FluidAction.EXECUTE);
-            if (drained.isEmpty()) return InteractionResult.FAIL;
-            int filled = otherTank.fill(drained, simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);
-            if (filled == 0) return InteractionResult.FAIL;
+        FluidStack simulatedDrain = itemTank.drain(maxTransfer, FluidAction.SIMULATE);
+        if (simulatedDrain.isEmpty()) return InteractionResult.FAIL;
+        int simulatedFill = otherTank.fill(simulatedDrain, FluidAction.SIMULATE);
+        if (simulatedFill == 0) return InteractionResult.FAIL;
+        int actualTransfer = Math.min(simulatedDrain.getAmount(), simulatedFill);
+        if (actualTransfer <= 0) return InteractionResult.FAIL;
+        // Drain only what the destination actually accepted. Skip drain in creative
+        // (infiniteFluid) so the flask doesn't deplete, but still perform the fill.
+        FluidStack toFill;
+        if (infiniteFluid) {
+            toFill = simulatedDrain.copyWithAmount(actualTransfer);
+        } else {
+            toFill = itemTank.drain(actualTransfer, FluidAction.EXECUTE);
+            if (toFill.isEmpty()) return InteractionResult.FAIL;
         }
+        otherTank.fill(toFill, FluidAction.EXECUTE);
         return InteractionResult.SUCCESS;
     }
 
@@ -161,9 +196,21 @@ public interface IMixtureStorageItem {
         return Component.translatable(stack.getDescriptionId() + ".filled", contents.getHoverName());
     }
 
-    DecimalFormat df = _initDf();
+    // Two formatters — concentrationDf (3 digits) drives the M / mM / μM threshold
+    // and per-species concentration line; temperatureDf (1 digit) keeps the kelvin
+    // header readable. Sharing one formatter forced a choice between "0.3 M" (too
+    // coarse for chemistry) and "308.700 K" (visual noise on the temperature line).
+    DecimalFormat concentrationDf = _initConcentrationDf();
+    DecimalFormat temperatureDf = _initTemperatureDf();
 
-    private static DecimalFormat _initDf() {
+    private static DecimalFormat _initConcentrationDf() {
+        DecimalFormat f = new DecimalFormat();
+        f.setMinimumFractionDigits(3);
+        f.setMaximumFractionDigits(3);
+        return f;
+    }
+
+    private static DecimalFormat _initTemperatureDf() {
         DecimalFormat f = new DecimalFormat();
         f.setMinimumFractionDigits(1);
         f.setMaximumFractionDigits(1);
@@ -183,14 +230,14 @@ public interface IMixtureStorageItem {
                 ReadOnlyMixture mixture = ReadOnlyMixture.readNBT(ClientMixture::new, mixtureTag);
                 boolean iupac = DestroyAllConfigs.CLIENT.chemistry.iupacNames.get();
                 temperature = mixture.getTemperature();
-                tooltip.addAll(mixture.getContentsTooltip(iupac, false, false, fluidStack.getAmount(), df)
+                tooltip.addAll(mixture.getContentsTooltip(iupac, false, false, fluidStack.getAmount(), concentrationDf)
                     .stream().map(Component::copy).toList());
             }
 
             // (tied to DestroyLang port which defers Phase-5/Client). Use plain kelvin display.
             tooltip.add(2, Component.literal(" " + fluidStack.getAmount()).withStyle(ChatFormatting.GRAY)
                 .append(CreateLang.translateDirect("generic.unit.millibuckets"))
-                .append(" " + df.format(temperature) + "K"));
+                .append(" " + temperatureDf.format(temperature) + "K"));
         });
     }
 }

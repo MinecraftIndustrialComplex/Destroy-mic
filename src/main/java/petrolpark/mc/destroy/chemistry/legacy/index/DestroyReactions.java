@@ -493,6 +493,7 @@ public class DestroyReactions {
         .addReactant(DestroyMolecules.HYDROGEN, 3, 0)
         .addSimpleItemTagCatalyst(PetrolparkTags.commonItemTag("dusts/iron"), 1f)
         .addProduct(DestroyMolecules.AMMONIA, 2)
+        .withResult(0f, DestroyAdvancementTrigger.HABER_PROCESS::asReactionResult)
         .build(), // TODO add reversibility and appropriate rate constants
     // TODO add oxidation of nitrogen in air so this is more difficult
         
@@ -910,6 +911,7 @@ public class DestroyReactions {
         .addProduct(DestroyMolecules.CARBON_MONOXIDE)
         .addProduct(DestroyMolecules.HYDROGEN, 3)
         .reversible()
+        .withResult(0f, DestroyAdvancementTrigger.STEAM_REFORMATION::asReactionResult)
         .build(),
 
     STYRENE_BUTADIENE_COPOLYMERIZATION = builder()
